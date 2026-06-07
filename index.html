@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ウマオジ｜競馬予想シミュレーション</title>
+<title>ウマオジ・アグリーダービー｜競馬予想バトル</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Maru+Gothic:wght@500;700;900&display=swap');
 
@@ -98,6 +98,33 @@ input:focus,select:focus{border-color:var(--turf);}
 .chip{padding:8px 12px; border-radius:999px; border:2px solid #e7ddc8; background:#fff; font-weight:900; cursor:pointer; font-size:13px;}
 .chip:active{transform:scale(.95);}
 
+/* ---- Analyze / EV ---- */
+#analyze{display:none;}
+.weights{background:#fff; border-radius:14px; padding:10px 14px; border:2px solid #f0e6d2; margin-bottom:14px;}
+.wrow{display:flex; align-items:center; gap:10px; margin:7px 0;}
+.wrow label{width:52px; font-size:12px; font-weight:900; color:var(--ink2);}
+.wrow input[type=range]{flex:1; accent-color:var(--turf);}
+.wrow .wv{width:34px; text-align:right; font-weight:900; font-size:13px; color:var(--turf-dark);}
+.acard{background:#fff; border-radius:16px; padding:10px 12px; border:2px solid #f0e6d2; margin-bottom:10px;}
+.atop{display:flex; align-items:center; gap:10px;}
+.atop .av{width:42px; height:42px; flex-shrink:0;}
+.atop .nm{font-weight:900; font-size:14px;}
+.atop .od{font-size:12px; color:var(--ink2);}
+.evbadge{margin-left:auto; text-align:right;}
+.evbadge .pb{font-family:'Dela Gothic One'; font-size:15px; color:var(--turf-dark); display:block; line-height:1.1;}
+.evbadge .ev{font-weight:900; font-size:12px; color:var(--ink2);}
+.evbadge .ev.val{color:#c47b00;}
+.expand-btn{font-size:11px; font-weight:900; color:var(--turf-dark); background:#eef6ef; border:none; border-radius:8px; padding:5px 10px; cursor:pointer; margin-top:8px;}
+.editor{margin-top:8px; display:none; border-top:1px dashed #ece4d2; padding-top:8px;}
+.editor.open{display:block;}
+.elabel{font-size:11px; font-weight:900; color:#8a8298; margin-bottom:4px;}
+.frow{display:flex; align-items:center; gap:8px; margin:5px 0;}
+.frow .fl{width:42px; font-size:11px; font-weight:900; color:var(--ink2);}
+.seg{display:flex; gap:3px; flex-wrap:wrap;}
+.seg button{border:none; cursor:pointer; font-weight:900; font-size:12px; border-radius:7px; padding:5px 9px; background:#f1ece1; color:#9a92a0;}
+.seg button.on{background:var(--turf); color:#fff;}
+.subj-row{display:flex; gap:16px; flex-wrap:wrap; margin-top:8px;}
+
 /* ---- Race track ---- */
 #race{display:none;}
 .track{position:relative; background:
@@ -156,10 +183,9 @@ input:focus,select:focus{border-color:var(--turf);}
 <body>
 <div class="wrap">
   <header>
-    <div class="coin">💰 <b id="coin">10,000</b></div>
-    <div class="logo">ウマオジ<span class="dash">アグリーダービー</span></div>
-    <div class="tag">🐎 オッズを入れて予想！オジが走って勝負を決める競馬シミュレーションゲーム</div>
-    <div style="margin-top:8px"><button class="btn btn-ghost btn-sm" id="styleToggle">👨 おじさん表示中 → 🐎 女子へ</button></div>
+    <div class="logo">ウマオジ・<span class="dash">アグリーダービー</span></div>
+    <div class="tag">🐎 オッズ＋事実スコアを重みで合成 → 期待値(EV)を見る分析ツール</div>
+    <div style="margin-top:8px"><button class="btn btn-ghost btn-sm" id="styleToggle">👨 おじさん表示中 → 🐎 馬娘へ</button></div>
   </header>
 
   <!-- ============ SETUP ============ -->
@@ -175,72 +201,72 @@ input:focus,select:focus{border-color:var(--turf);}
       </div>
       <div class="flexbtn" style="justify-content:flex-start">
         <button class="btn btn-ghost btn-sm" id="sample">🎲 サンプル8頭を投入</button>
+        <button class="btn btn-ghost btn-sm" id="loadYasuda">📋 安田記念2026(実データ)</button>
+        <button class="btn btn-ghost btn-sm" id="importBtn">📂 DB読み込み(JSON)</button>
+        <button class="btn btn-ghost btn-sm" id="exportBtn">💾 書き出し(JSON)</button>
         <button class="btn btn-ghost btn-sm" id="clear">🗑 全消去</button>
+        <input type="file" id="fileInput" accept=".json,application/json" style="display:none">
       </div>
       <div class="horse-list" id="hlist"></div>
     </div>
     <div class="center mt">
-      <button class="btn btn-go" id="toBet" disabled>予想へ進む ▶</button>
+      <button class="btn btn-go" id="toBet" disabled>分析へ進む ▶</button>
     </div>
   </section>
 
-  <!-- ============ BET ============ -->
-  <section id="bet" style="display:none">
+  <!-- ============ ANALYZE / EV ============ -->
+  <section id="analyze" style="display:none">
     <div class="panel">
-      <h2><span class="ic">🎯</span>予想する</h2>
-      <div class="tabs" id="tabs">
-        <div class="tab on" data-bet="tansho">単勝<br><span style="font-size:10px;font-weight:700">1頭・1着</span></div>
-        <div class="tab" data-bet="fukusho">複勝<br><span style="font-size:10px;font-weight:700">1頭・3着内</span></div>
-        <div class="tab" data-bet="sanrenpuku">3連複<br><span style="font-size:10px;font-weight:700">3頭・3着内</span></div>
+      <h2><span class="ic">📊</span>分析・期待値(EV)</h2>
+      <p class="hint">オッズ＋事実スコア（運用側が投入）＋当日の調教・パドック（あなたが操作）を重みで合成し、モデル勝率と期待値を算出します。<b>EV＞1.00＝妙味</b>（オッズに対して“買い得”）。重みは比率で、下のスライダーで調整できます（合計は自動で100%換算）。</p>
+      <div class="weights">
+        <div class="wrow"><label>オッズ</label><input type="range" id="w-odds" min="0" max="100" value="55"><span class="wv" id="wv-odds">55</span></div>
+        <div class="wrow"><label>事実</label><input type="range" id="w-fact" min="0" max="100" value="30"><span class="wv" id="wv-fact">30</span></div>
+        <div class="wrow"><label>当日</label><input type="range" id="w-subj" min="0" max="100" value="15"><span class="wv" id="wv-subj">15</span></div>
       </div>
-      <p class="hint" id="betHint">勝つと思う1頭を選択。</p>
-      <div class="pick-grid mt" id="pickGrid"></div>
-      <div class="stakebar">
-        <div class="field"><label>賭け金</label><input id="stake" type="number" min="100" step="100" value="1000" style="width:120px"></div>
-        <div class="chips">
-          <span class="chip" data-add="500">+500</span>
-          <span class="chip" data-add="1000">+1,000</span>
-          <span class="chip" data-add="5000">+5,000</span>
-          <span class="chip" data-set="max">MAX</span>
-        </div>
-      </div>
+      <div style="text-align:right;margin-bottom:8px"><button class="btn btn-ghost btn-sm" id="sortEv">↕ EV順に並べ替え</button></div>
+      <div id="alist"></div>
     </div>
     <div class="flexbtn">
-      <button class="btn btn-ghost" id="backSetup">◀ 馬を編集</button>
-      <button class="btn btn-go" id="startRace">🏁 レース開始！</button>
+      <button class="btn btn-ghost" id="backSetup2">◀ 馬を編集</button>
+      <button class="btn btn-go" id="toBet2">▶ レースを再生（観るだけ）</button>
     </div>
   </section>
 
-  <!-- ============ RACE ============ -->
+  <!-- ============ RACE (watch-only) ============ -->
   <section id="race">
+    <div class="flexbtn">
+      <button class="btn btn-ghost" id="skipRace">⏭ スキップして結果へ</button>
+    </div>
+
     <div class="panel" style="padding:14px">
-      <div class="track" id="track"></div>
       <div class="callbar"><span class="live">LIVE</span><span id="call">スタートの時を待っています…</span></div>
       <div class="posboard" id="posboard"></div>
+      <div class="track" id="track"></div>
     </div>
   </section>
 
   <!-- ============ RESULT ============ -->
   <section id="result">
     <div class="panel">
-      <h2><span class="ic">🏆</span>結果</h2>
+      <h2><span class="ic">🏆</span>シミュレーション結果</h2>
+      <p class="hint">重みで作ったモデル勝率に沿って走らせた一例です（毎回ランダム変動あり）。</p>
       <div class="podium" id="podium"></div>
-      <div class="payout" id="payout"></div>
       <div class="full-order" id="fullOrder"></div>
     </div>
     <div class="flexbtn">
-      <button class="btn btn-go" id="again">🔄 同じメンバーでもう一度</button>
-      <button class="btn btn-ghost" id="reEdit">✏️ 予想からやり直す</button>
+      <button class="btn btn-go" id="again">🔄 もう一度再生</button>
+      <button class="btn btn-ghost" id="reEdit">⚖️ 重みを調整</button>
       <button class="btn btn-ghost" id="newField">🆕 馬を組み直す</button>
     </div>
   </section>
 
-  <div class="footer">勝敗はオッズに基づく確率＋ランダム要素でシミュレートされます（実際の払戻とは異なります）。</div>
+  <div class="footer">走行は合成モデル勝率＋ランダム要素のシミュレーションで、実際の結果・配当とは異なります。</div>
 </div>
 
 <script>
 /* =========================================================
-   ターフ・ダッシュ  – core
+   ウマオジ・アグリーダービー  – core
 ========================================================= */
 const COLORS = ['#ff6b8a','#5aa9ff','#ffb454','#6ddf9a','#b48cff','#ff8fb8','#4fd1c5','#ffd24a','#ff7a6b','#7aa5ff','#9be36b','#e88cff','#ffc04a','#5fd0ff','#ff95a8','#88e0a0','#c9a0ff','#ffae5a'];
 const FRAME = {1:'#f5f5f5',2:'#2b2b2b',3:'#e8413a',4:'#3a7be8',5:'#f2c513',6:'#2faa61',7:'#f08a2c',8:'#ff8fb8'};
@@ -251,9 +277,7 @@ const KYAKU = [
   {name:'追込', curve:[0.70,0.90,1.15,1.45]},
 ];
 
-let horses = [];      // {num,name,odds,color,kyaku}
-let coin = 10000;
-let bet = {type:'tansho', picks:[], stake:1000};
+let horses = [];      // {num,name,odds,color,kyaku,face,stats,subj}
 
 /* ---------- avatar (style switch + おじさん variations) ---------- */
 let avatarStyle = 'oji';   // 'oji' | 'uma'
@@ -353,15 +377,14 @@ function textColor(num){ return (((num-1)%8)+1)===1?'#222':((((num-1)%8)+1)===5?
 
 /* ---------- setup ---------- */
 const $ = s=>document.querySelector(s);
-function renderCoin(){ $('#coin').textContent = coin.toLocaleString(); }
-function show(id){ ['setup','bet','race','result'].forEach(s=>$('#'+s).style.display = (s===id?'block':'none')); window.scrollTo({top:0,behavior:'smooth'}); }
+function show(id){ ['setup','analyze','race','result'].forEach(s=>$('#'+s).style.display = (s===id?'block':'none')); window.scrollTo({top:0,behavior:'smooth'}); }
 
 function addHorse(num,name,odds){
   num=parseInt(num); odds=parseFloat(odds);
   if(!num||!name||!odds||odds<1){ alert('馬番・馬名・オッズ（1.0以上）を入力してください'); return; }
   if(horses.some(h=>h.num===num)){ alert('その馬番はすでに登録済みです'); return; }
   if(horses.length>=12){ alert('最大12頭までです'); return; }
-  horses.push({num,name,odds,color:COLORS[(num-1)%COLORS.length],kyaku:KYAKU[Math.floor(Math.random()*KYAKU.length)],face:makeFace()});
+  horses.push({num,name,odds,color:COLORS[(num-1)%COLORS.length],kyaku:KYAKU[Math.floor(Math.random()*KYAKU.length)],face:makeFace(),stats:makeStats(),subj:{chokyo:'B',paddock:'△'}});
   horses.sort((a,b)=>a.num-b.num);
   renderHorses();
 }
@@ -387,67 +410,156 @@ $('#i-odds').addEventListener('keydown',e=>{ if(e.key==='Enter') $('#add').click
 $('#clear').onclick=()=>{ if(confirm('全消去しますか？')){ horses=[]; renderHorses(); } };
 $('#sample').onclick=()=>{
   horses=[]; const s=[
-    ['サクラエクスプレス',2.4],['ミルキーアロー',4.1],['ゴウケツガイア',6.8],['シャイニングノヴァ',9.5],
-    ['ハルカゼスズラン',13.2],['テンペストロア',21.0],['オーロラブレイズ',38.5],['ライトニングルー',57.0]];
-  s.forEach((x,i)=>horses.push({num:i+1,name:x[0],odds:x[1],color:COLORS[i%COLORS.length],kyaku:KYAKU[Math.floor(Math.random()*KYAKU.length)],face:makeFace()}));
+    ['サクラエクスプレス',2.4,[3,3,3,3,3,3]],
+    ['ミルキーアロー',4.1,[5,5,4,5,4,5]],
+    ['ゴウケツガイア',6.8,[4,3,4,4,3,4]],
+    ['シャイニングノヴァ',9.5,[3,4,3,3,4,3]],
+    ['ハルカゼスズラン',13.2,[3,3,3,2,3,3]],
+    ['テンペストロア',21.0,[4,4,3,4,4,4]],
+    ['オーロラブレイズ',38.5,[2,2,3,2,2,2]],
+    ['ライトニングルー',57.0,[2,3,2,2,2,3]]];
+  s.forEach((x,i)=>horses.push({num:i+1,name:x[0],odds:x[1],color:COLORS[i%COLORS.length],kyaku:KYAKU[Math.floor(Math.random()*KYAKU.length)],face:makeFace(),
+    stats:{kyori:x[2][0],course:x[2][1],ped:x[2][2],jockey:x[2][3],trend:x[2][4],recent:x[2][5]},subj:{chokyo:'B',paddock:'△'}}));
   renderHorses();
 };
-$('#toBet').onclick=()=>{ openBet(); show('bet'); };
-$('#backSetup').onclick=()=>show('setup');
-
-/* ---------- bet ---------- */
-$('#tabs').onclick=e=>{ const t=e.target.closest('.tab'); if(!t) return;
-  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on')); t.classList.add('on');
-  bet.type=t.dataset.bet; bet.picks=[]; openBet();
+$('#loadYasuda').onclick=()=>{
+  // 第76回 安田記念(2026/6/7 東京芝1600m)。オッズは上位8頭が実オッズ、9人気以下は人気からの推定。
+  // stats=[距離,コース,血統,騎手,傾向,近走] 1〜5（事実スコア＝運用側投入の例）。kyaku: 0逃 1先 2差 3追
+  const Y=[
+    [1,'レーベンスティール',8.5,2,[4,4,4,4,3,4]],
+    [2,'ロングラン',210,1,[2,2,2,2,2,2]],
+    [3,'オフトレイル',38,2,[4,4,3,3,4,3]],
+    [4,'シックスペンス',21.6,0,[4,4,4,4,4,3]],
+    [5,'サクラトゥジュール',170,2,[3,3,3,2,2,2]],
+    [6,'ステレンボッシュ',10.5,2,[3,4,5,4,3,4]],
+    [7,'スズハローム',70,1,[3,3,3,3,3,4]],
+    [8,'シャンパンカラー',55,2,[4,4,3,3,3,2]],
+    [9,'ウォーターリヒト',30,2,[4,4,3,3,2,2]],
+    [10,'ルクソールカフェ',110,3,[2,2,2,2,2,2]],
+    [11,'ワールズエンド',15.1,1,[3,4,3,4,3,4]],
+    [12,'シリウスコルト',140,2,[3,3,3,2,2,2]],
+    [13,'セイウンハーデス',14.7,1,[3,4,3,3,3,3]],
+    [14,'ガイアフォース',2.9,2,[5,5,4,3,5,4]],
+    [15,'ドラゴンブースト',88,3,[3,3,3,2,2,3]],
+    [16,'パンジャタワー',9.5,1,[4,4,4,3,3,3]],
+    [17,'トロヴァトーレ',4.2,2,[3,4,3,4,3,5]]];
+  horses=[];
+  Y.forEach(r=>horses.push({num:r[0],name:r[1],odds:r[2],color:COLORS[(r[0]-1)%COLORS.length],kyaku:KYAKU[r[3]],face:makeFace(),
+    stats:{kyori:r[4][0],course:r[4][1],ped:r[4][2],jockey:r[4][3],trend:r[4][4],recent:r[4][5]},subj:{chokyo:'B',paddock:'△'}}));
+  renderHorses();
 };
-function openBet(){
-  const need = bet.type==='sanrenpuku'?3:1;
-  $('#betHint').textContent = bet.type==='tansho'?'勝つと思う1頭を選択。'
-    : bet.type==='fukusho'?'3着以内に入ると思う1頭を選択。'
-    : '3着以内を独占すると思う3頭を選択（順不同）。';
-  const g=$('#pickGrid'); g.innerHTML='';
-  horses.forEach(h=>{
-    const d=document.createElement('div'); d.className='pick'+(bet.picks.includes(h.num)?' sel':'');
-    d.dataset.num=h.num;
-    d.innerHTML=`<span class="chk">✓</span>${avatar(h.color,h.face)}
-      <div><div class="nm">${h.num}. ${escapeHtml(h.name)}</div><div class="od">${h.odds.toFixed(1)}倍 / ${h.kyaku.name}</div></div>`;
-    d.onclick=()=>{
-      const n=h.num;
-      if(bet.picks.includes(n)) bet.picks=bet.picks.filter(x=>x!==n);
-      else { if(bet.picks.length>=need){ if(need===1) bet.picks=[]; else { alert(need+'頭まで'); return; } } bet.picks.push(n); }
-      openBet();
-    };
-    g.appendChild(d);
-  });
+$('#toBet').onclick=()=>{ renderAnalyze(); show('analyze'); };
+/* ---------- JSON import / export (事実DBファイル) ---------- */
+$('#importBtn').onclick=()=>$('#fileInput').click();
+$('#fileInput').onchange=e=>{
+  const file=e.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=()=>{ try{ loadData(JSON.parse(reader.result)); }catch(err){ alert('JSONの読み込みに失敗しました: '+err.message); } e.target.value=''; };
+  reader.readAsText(file);
+};
+function loadData(data){
+  const list = Array.isArray(data) ? data : (data.horses || (data.races && data.races[0] && data.races[0].horses));
+  if(!Array.isArray(list)){ alert('horses 配列が見つかりません'); return; }
+  if(data.weights){ ['odds','fact','subj'].forEach(k=>{ if(typeof data.weights[k]==='number') weights[k]=data.weights[k]; }); }
+  horses = list.map(h=>{
+    const st=h.stats||{}, sj=h.subj||{};
+    const ky=(typeof h.kyaku==='number')?KYAKU[((h.kyaku%4)+4)%4]:(KYAKU.find(k=>k.name===h.kyaku)||KYAKU[Math.floor(Math.random()*4)]);
+    return {num:+h.num, name:String(h.name), odds:+h.odds, color:COLORS[((+h.num)-1)%COLORS.length], kyaku:ky, face:makeFace(),
+      stats:{kyori:+st.kyori||3,course:+st.course||3,ped:+st.ped||3,jockey:+st.jockey||3,trend:+st.trend||3,recent:+st.recent||3},
+      subj:{chokyo:sj.chokyo||'B',paddock:sj.paddock||'△'}};
+  }).filter(h=>h.num&&h.name&&h.odds>=1).sort((a,b)=>a.num-b.num);
+  renderHorses();
+  alert(horses.length+'頭を読み込みました。');
 }
-$('.chips').onclick=e=>{ const c=e.target.closest('.chip'); if(!c) return;
-  const st=$('#stake');
-  if(c.dataset.set==='max') st.value=coin;
-  else st.value=Math.min(coin,(parseInt(st.value)||0)+parseInt(c.dataset.add));
-};
-$('#startRace').onclick=()=>{
-  const need = bet.type==='sanrenpuku'?3:1;
-  if(bet.picks.length<need){ alert('予想する馬を選んでください'); return; }
-  bet.stake=Math.max(100,parseInt($('#stake').value)||0);
-  if(bet.stake>coin){ alert('コインが足りません'); return; }
-  coin-=bet.stake; renderCoin();
-  startRace();
+$('#exportBtn').onclick=()=>{
+  if(!horses.length){ alert('書き出す馬がいません'); return; }
+  const data={ race:{name:'',course:'',date:''}, weights:{...weights},
+    horses:horses.map(h=>({num:h.num,name:h.name,odds:h.odds,kyaku:KYAKU.indexOf(h.kyaku),
+      stats:{...h.stats}, subj:{...h.subj}})) };
+  const json=JSON.stringify(data,null,2);
+  try{
+    const blob=new Blob([json],{type:'application/json'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='turf_dash_db.json';
+    document.body.appendChild(a); a.click(); a.remove();
+  }catch(err){ prompt('下記JSONをコピーして保存してください', json); }
 };
 
-/* ---------- race sim ---------- */
-let raf=null;
+/* ---------- analyze / EV model ---------- */
+const FACTORS=[['kyori','距離'],['course','コース'],['ped','血統'],['jockey','騎手'],['trend','傾向'],['recent','近走']];
+const CHOKYO=['C','B','A','S'], PAD=['消','△','○','◎'];
+let weights={odds:55,fact:30,subj:15};
+let analyzeSort=false;
+const openEditors=new Set();
+function makeStats(){ return {kyori:3,course:3,ped:3,jockey:3,trend:3,recent:3}; }
+
+function computeModel(){
+  const n=horses.length||1;
+  const inv  = horses.map(h=>1/h.odds);
+  const fact = horses.map(h=>{ const v=FACTORS.map(f=>h.stats[f[0]]); return (v.reduce((a,b)=>a+b,0)/v.length-1)/4; });
+  const subj = horses.map(h=>(CHOKYO.indexOf(h.subj.chokyo)+PAD.indexOf(h.subj.paddock))/6);
+  const norm = a=>{ const s=a.reduce((x,y)=>x+y,0); return s>0?a.map(x=>x/s):a.map(()=>1/n); };
+  const iN=norm(inv), fN=norm(fact), sN=norm(subj);
+  const ws=(weights.odds+weights.fact+weights.subj)||1;
+  const wO=weights.odds/ws, wF=weights.fact/ws, wS=weights.subj/ws;
+  return horses.map((h,i)=>{ const prob=wO*iN[i]+wF*fN[i]+wS*sN[i]; return {num:h.num,name:h.name,odds:h.odds,prob,ev:prob*h.odds}; });
+}
+
+function renderAnalyze(){
+  $('#wv-odds').textContent=weights.odds; $('#wv-fact').textContent=weights.fact; $('#wv-subj').textContent=weights.subj;
+  $('#w-odds').value=weights.odds; $('#w-fact').value=weights.fact; $('#w-subj').value=weights.subj;
+  const model=computeModel();
+  let rows=horses.map((h,i)=>({h,m:model[i]}));
+  if(analyzeSort) rows.sort((a,b)=>b.m.ev-a.m.ev);
+  const el=$('#alist'); el.innerHTML='';
+  rows.forEach(({h,m})=>{
+    const open=openEditors.has(h.num);
+    const facEditor=FACTORS.map(f=>`<div class="frow"><span class="fl">${f[1]}</span><div class="seg" data-fac="${f[0]}" data-num="${h.num}">${[1,2,3,4,5].map(v=>`<button data-v="${v}" class="${h.stats[f[0]]===v?'on':''}">${v}</button>`).join('')}</div></div>`).join('');
+    const card=document.createElement('div'); card.className='acard';
+    card.innerHTML=`
+      <div class="atop">${avatar(h.color,h.face)}
+        <div><div class="nm">${h.num}. ${escapeHtml(h.name)}</div><div class="od">単勝 ${h.odds.toFixed(1)}倍</div></div>
+        <div class="evbadge"><span class="pb" id="pb${h.num}">${(m.prob*100).toFixed(1)}%</span><span class="ev ${m.ev>=1?'val':''}" id="ev${h.num}">EV ${m.ev.toFixed(2)}${m.ev>=1?' 妙味':''}</span></div>
+      </div>
+      <button class="expand-btn" data-num="${h.num}">${open?'▲ 閉じる':'▼ 事実スコア・当日'}</button>
+      <div class="editor ${open?'open':''}">
+        <div class="elabel">事実スコア（運用側で投入）1〜5</div>
+        ${facEditor}
+        <div class="subj-row">
+          <div><div class="fl" style="width:auto">調教</div><div class="seg" data-subj="chokyo" data-num="${h.num}">${CHOKYO.map(c=>`<button data-v="${c}" class="${h.subj.chokyo===c?'on':''}">${c}</button>`).join('')}</div></div>
+          <div><div class="fl" style="width:auto">パドック</div><div class="seg" data-subj="paddock" data-num="${h.num}">${PAD.map(c=>`<button data-v="${c}" class="${h.subj.paddock===c?'on':''}">${c}</button>`).join('')}</div></div>
+        </div>
+      </div>`;
+    el.appendChild(card);
+  });
+  el.querySelectorAll('.expand-btn').forEach(b=>b.onclick=()=>{ const n=+b.dataset.num; openEditors.has(n)?openEditors.delete(n):openEditors.add(n); renderAnalyze(); });
+  el.querySelectorAll('.seg[data-fac]').forEach(seg=>seg.querySelectorAll('button').forEach(btn=>btn.onclick=()=>{ horses.find(h=>h.num===+seg.dataset.num).stats[seg.dataset.fac]=+btn.dataset.v; renderAnalyze(); }));
+  el.querySelectorAll('.seg[data-subj]').forEach(seg=>seg.querySelectorAll('button').forEach(btn=>btn.onclick=()=>{ horses.find(h=>h.num===+seg.dataset.num).subj[seg.dataset.subj]=btn.dataset.v; renderAnalyze(); }));
+}
+function refreshEV(){
+  $('#wv-odds').textContent=weights.odds; $('#wv-fact').textContent=weights.fact; $('#wv-subj').textContent=weights.subj;
+  computeModel().forEach(m=>{ const pb=document.getElementById('pb'+m.num), ev=document.getElementById('ev'+m.num);
+    if(pb) pb.textContent=(m.prob*100).toFixed(1)+'%';
+    if(ev){ ev.textContent='EV '+m.ev.toFixed(2)+(m.ev>=1?' 妙味':''); ev.className='ev '+(m.ev>=1?'val':''); } });
+}
+['odds','fact','subj'].forEach(k=>{ const s=$('#w-'+k); s.oninput=()=>{ weights[k]=+s.value; refreshEV(); }; });
+$('#sortEv').onclick=()=>{ analyzeSort=!analyzeSort; renderAnalyze(); };
+$('#backSetup2').onclick=()=>show('setup');
+$('#toBet2').onclick=()=>{ startRace(); };
+
+/* ---------- race sim (watch-only) ---------- */
+let raf=null, raceSkip=false;
 function startRace(){
-  show('race');
+  show('race'); raceSkip=false;
   const track=$('#track'); track.innerHTML=''; track.style.height=(horses.length*54)+'px';
   track.insertAdjacentHTML('beforeend','<div class="finish"></div>');
 
-  // implied probability from odds → base power
-  const inv = horses.map(h=>1/h.odds);
-  const sum = inv.reduce((a,b)=>a+b,0);
+  // blended model probability (odds + facts + 当日) → base power
+  const model = computeModel();
+  const probByNum = {}; model.forEach(m=>probByNum[m.num]=m.prob);
   const runners = horses.map((h,i)=>{
-    const p = inv[i]/sum;                 // implied win prob
-    const power = 0.55 + p*0.9;            // favorites faster
-    const luck = 0.85 + Math.random()*0.45; // race-day condition
+    const p = probByNum[h.num];             // model win prob
+    const power = 0.55 + p*0.9;             // stronger model prob = faster
+    const luck = 0.85 + Math.random()*0.45; // race-day variance
     return {...h, p, power:power*luck, prog:0, fin:null, lane:i};
   });
 
@@ -466,6 +578,11 @@ function startRace(){
   const TRACK=1.0, leftStart=6, leftEnd=92;
 
   function frame(){
+    if(raceSkip){
+      cancelAnimationFrame(raf);
+      const order=[...runners].sort((a,b)=>((a.fin??1e9)-(b.fin??1e9))||(b.prog-a.prog));
+      finishRace(order); return;
+    }
     t++;
     runners.forEach(r=>{
       if(r.fin!==null) return;
@@ -500,27 +617,7 @@ function startRace(){
 /* ---------- result ---------- */
 let lastResult=null;
 function finishRace(order){
-  const get=n=>horses.find(h=>h.num===n);
-  const top3=order.slice(0,3).map(r=>r.num);
-  let won=false, payout=0, detail='';
-  if(bet.type==='tansho'){
-    const win=order[0].num; won = bet.picks[0]===win;
-    payout = won ? Math.round(bet.stake*get(win).odds) : 0;
-    detail = `単勝 ${bet.picks[0]} → 1着 ${win}`;
-  } else if(bet.type==='fukusho'){
-    const n=bet.picks[0]; won=top3.includes(n);
-    const fuku=Math.max(1.1, get(n).odds*0.28);
-    payout = won ? Math.round(bet.stake*fuku) : 0;
-    detail = `複勝 ${n}（${won?'3着内':'圏外'}）`;
-  } else {
-    won = bet.picks.every(n=>top3.includes(n));
-    const od = bet.picks.map(n=>get(n).odds);
-    const est = Math.max(3, (od[0]*od[1]*od[2])/22);
-    payout = won ? Math.round(bet.stake/100*est*10) : 0;
-    detail = `3連複 ${[...bet.picks].sort((a,b)=>a-b).join('-')}`;
-  }
-  coin+=payout; renderCoin();
-  lastResult = {order, won, payout, detail, stake:bet.stake};
+  lastResult = {order};
   renderResult(lastResult);
   show('result');
 }
@@ -533,26 +630,22 @@ function renderResult(R){
     d.innerHTML=`${avatar(r.color,r.face)}<div class="bar">${rk}</div><div class="lbl">${r.num}.${escapeHtml(r.name)}</div>`;
     pod.appendChild(d);
   });
-  const pe=$('#payout'); pe.className='payout '+(R.won?'win':'lose');
-  pe.innerHTML = R.won
-    ? `<div style="font-weight:900">🎉 的中！（${R.detail}）</div><div class="big">+${R.payout.toLocaleString()}</div><div class="hint">払戻 ${R.payout.toLocaleString()}コイン（賭け金 ${R.stake.toLocaleString()}）</div>`
-    : `<div style="font-weight:900">😢 ハズレ（${R.detail}）</div><div class="big">±0</div><div class="hint">また次のレースで！</div>`;
-  const fo=$('#fullOrder'); fo.innerHTML='<h2 style="font-size:14px;margin:6px 0 4px;color:#5a5466">全着順</h2>';
+  const fo=$('#fullOrder'); fo.innerHTML='<h2 style="font-size:14px;margin:6px 0 4px;color:#5a5466">全着順（シミュレーション）</h2>';
   order.forEach((r,i)=>{
     const row=document.createElement('div'); row.className='ord-row';
     row.innerHTML=`<span class="rk">${i+1}</span>${avatar(r.color,r.face)}<span class="nm">${r.num}. ${escapeHtml(r.name)}</span><span class="tm">単${r.odds.toFixed(1)} / ${r.kyaku.name}</span>`;
     fo.appendChild(row);
   });
 }
-
-$('#again').onclick=()=>{ if(bet.stake>coin){ alert('コインが足りません。賭け金を選び直してください'); openBet(); show('bet'); return; } coin-=bet.stake; renderCoin(); startRace(); };
-$('#reEdit').onclick=()=>{ openBet(); show('bet'); };
+$('#skipRace').onclick=()=>{ raceSkip=true; };
+$('#again').onclick=()=>{ startRace(); };
+$('#reEdit').onclick=()=>{ renderAnalyze(); show('analyze'); };
 $('#newField').onclick=()=>show('setup');
 
 /* ---------- avatar style toggle ---------- */
 function refreshAvatars(){
   renderHorses();
-  if($('#bet').style.display!=='none') openBet();
+  if($('#analyze').style.display!=='none') renderAnalyze();
   if($('#result').style.display!=='none' && lastResult) renderResult(lastResult);
   if($('#race').style.display!=='none'){
     document.querySelectorAll('#track .runner').forEach(el=>{
@@ -565,11 +658,11 @@ function refreshAvatars(){
 $('#styleToggle').onclick=()=>{
   avatarStyle = avatarStyle==='oji' ? 'uma' : 'oji';
   $('#styleToggle').innerHTML = avatarStyle==='oji'
-    ? '👨 おじさん表示中 → 🐎 女子へ' : '🐎 女子表示中 → 👨 おじさんへ';
+    ? '👨 おじさん表示中 → 🐎 馬娘へ' : '🐎 馬娘表示中 → 👨 おじさんへ';
   refreshAvatars();
 };
 
-renderCoin(); renderHorses();
+renderHorses();
 </script>
 </body>
 </html>

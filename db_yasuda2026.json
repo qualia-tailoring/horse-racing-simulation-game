@@ -1,0 +1,24 @@
+{
+  "race": { "name": "安田記念2026", "course": "東京 芝1600m 左", "date": "2026-06-07" },
+  "weights": { "odds": 55, "fact": 30, "subj": 15 },
+  "scoring_note": "stats=1〜5。kyaku: 0=逃げ 1=先行 2=差し 3=追込。oddsは上位8頭が実オッズ、9人気以下は人気からの推定。",
+  "horses": [
+    { "num": 1,  "name": "レーベンスティール",   "odds": 8.5,  "kyaku": 2, "stats": { "kyori": 4, "course": 4, "ped": 4, "jockey": 4, "trend": 3, "recent": 4 }, "subj": { "chokyo": "B", "paddock": "△" } },
+    { "num": 2,  "name": "ロングラン",           "odds": 210,  "kyaku": 1, "stats": { "kyori": 2, "course": 2, "ped": 2, "jockey": 2, "trend": 2, "recent": 2 }, "subj": { "chokyo": "B", "paddock": "△" } },
+    { "num": 3,  "name": "オフトレイル",         "odds": 38,   "kyaku": 2, "stats": { "kyori": 4, "course": 4, "ped": 3, "jockey": 3, "trend": 4, "recent": 3 }, "subj": { "chokyo": "B", "paddock": "△" } },
+    { "num": 4,  "name": "シックスペンス",       "odds": 21.6, "kyaku": 0, "stats": { "kyori": 4, "course": 4, "ped": 4, "jockey": 4, "trend": 4, "recent": 3 }, "subj": { "chokyo": "B", "paddock": "△" } },
+    { "num": 5,  "name": "サクラトゥジュール",   "odds": 170,  "kyaku": 2, "stats": { "kyori": 3, "course": 3, "ped": 3, "jockey": 2, "trend": 2, "recent": 2 }, "subj": { "chokyo": "B", "paddock": "△" } },
+    { "num": 6,  "name": "ステレンボッシュ",     "odds": 10.5, "kyaku": 2, "stats": { "kyori": 3, "course": 4, "ped": 5, "jockey": 4, "trend": 3, "recent": 4 }, "subj": { "chokyo": "B", "paddock": "△" } },
+    { "num": 7,  "name": "スズハローム",         "odds": 70,   "kyaku": 1, "stats": { "kyori": 3, "course": 3, "ped": 3, "jockey": 3, "trend": 3, "recent": 4 }, "subj": { "chokyo": "B", "paddock": "△" } },
+    { "num": 8,  "name": "シャンパンカラー",     "odds": 55,   "kyaku": 2, "stats": { "kyori": 4, "course": 4, "ped": 3, "jockey": 3, "trend": 3, "recent": 2 }, "subj": { "chokyo": "B", "paddock": "△" } },
+    { "num": 9,  "name": "ウォーターリヒト",     "odds": 30,   "kyaku": 2, "stats": { "kyori": 4, "course": 4, "ped": 3, "jockey": 3, "trend": 2, "recent": 2 }, "subj": { "chokyo": "B", "paddock": "△" } },
+    { "num": 10, "name": "ルクソールカフェ",     "odds": 110,  "kyaku": 3, "stats": { "kyori": 2, "course": 2, "ped": 2, "jockey": 2, "trend": 2, "recent": 2 }, "subj": { "chokyo": "B", "paddock": "△" } },
+    { "num": 11, "name": "ワールズエンド",       "odds": 15.1, "kyaku": 1, "stats": { "kyori": 3, "course": 4, "ped": 3, "jockey": 4, "trend": 3, "recent": 4 }, "subj": { "chokyo": "B", "paddock": "△" } },
+    { "num": 12, "name": "シリウスコルト",       "odds": 140,  "kyaku": 2, "stats": { "kyori": 3, "course": 3, "ped": 3, "jockey": 2, "trend": 2, "recent": 2 }, "subj": { "chokyo": "B", "paddock": "△" } },
+    { "num": 13, "name": "セイウンハーデス",     "odds": 14.7, "kyaku": 1, "stats": { "kyori": 3, "course": 4, "ped": 3, "jockey": 3, "trend": 3, "recent": 3 }, "subj": { "chokyo": "B", "paddock": "△" } },
+    { "num": 14, "name": "ガイアフォース",       "odds": 2.9,  "kyaku": 2, "stats": { "kyori": 5, "course": 5, "ped": 4, "jockey": 3, "trend": 5, "recent": 4 }, "subj": { "chokyo": "B", "paddock": "△" } },
+    { "num": 15, "name": "ドラゴンブースト",     "odds": 88,   "kyaku": 3, "stats": { "kyori": 3, "course": 3, "ped": 3, "jockey": 2, "trend": 2, "recent": 3 }, "subj": { "chokyo": "B", "paddock": "△" } },
+    { "num": 16, "name": "パンジャタワー",       "odds": 9.5,  "kyaku": 1, "stats": { "kyori": 4, "course": 4, "ped": 4, "jockey": 3, "trend": 3, "recent": 3 }, "subj": { "chokyo": "B", "paddock": "△" } },
+    { "num": 17, "name": "トロヴァトーレ",       "odds": 4.2,  "kyaku": 2, "stats": { "kyori": 3, "course": 4, "ped": 3, "jockey": 4, "trend": 3, "recent": 5 }, "subj": { "chokyo": "B", "paddock": "△" } }
+  ]
+}
