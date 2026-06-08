@@ -98,6 +98,11 @@ input:focus,select:focus{border-color:var(--turf);}
   background-image:linear-gradient(45deg,transparent 50%,var(--ink2) 50%),linear-gradient(135deg,var(--ink2) 50%,transparent 50%);
   background-position:calc(100% - 11px) center, calc(100% - 7px) center; background-size:4px 4px,4px 4px; background-repeat:no-repeat;}
 .subj-selects select.dd:focus{border-color:var(--turf);}
+.subj-selects .dwfield{display:flex; align-items:center; gap:4px; font-size:11px; font-weight:900; color:var(--ink2);}
+.subj-selects input.dw{width:54px; font-family:inherit; font-weight:900; font-size:12px; padding:4px 6px; border:2px solid #e7ddc8; border-radius:8px; background:#fff; color:var(--ink); outline:none; text-align:center;}
+.subj-selects input.dw:focus{border-color:var(--turf);}
+.biasrow{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px;}
+.biashint{font-size:11px; color:var(--ink2); font-weight:700;}
 .evbadge{text-align:right; min-width:66px;}
 .evbadge .pb{font-family:'Dela Gothic One'; font-size:14px; color:var(--turf-dark); display:block; line-height:1;}
 .evbadge .ev{font-weight:900; font-size:11px; color:var(--ink2);}
@@ -227,11 +232,23 @@ select.dd2:focus{border-color:var(--turf);}
   <section id="analyze" style="display:none">
     <div class="panel">
       <h2><span class="ic">📊</span>分析・期待値(EV)</h2>
-      <p class="hint">オッズ＋事実スコア（運用側が投入）＋当日の調教・パドック（各行のプルダウンで操作）を重みで合成し、モデル勝率と期待値を算出します。<b>EV＞1.00＝妙味</b>（オッズに対して“買い得”）。重みは比率（合計は自動で100%換算）。</p>
+      <p class="hint">オッズ＋事実スコア（運用側）＋当日（調教・パドック・馬体重増減＋馬場バイアス）を重みで合成し、モデル勝率と期待値を算出します。<b>EV＞1.00＝妙味</b>。当日層は情報がある馬・項目だけが動き、無入力は中立に縮約されます（体重は大幅減のみ自動割引、増は中立）。重みは比率（合計は自動で100%換算）。</p>
       <div class="weights">
         <div class="wrow"><label>オッズ</label><input type="range" id="w-odds" min="0" max="100" value="55"><span class="wv" id="wv-odds">55</span></div>
         <div class="wrow"><label>事実</label><input type="range" id="w-fact" min="0" max="100" value="30"><span class="wv" id="wv-fact">30</span></div>
         <div class="wrow"><label>当日</label><input type="range" id="w-subj" min="0" max="100" value="15"><span class="wv" id="wv-subj">15</span></div>
+      </div>
+      <div class="biasrow">
+        <label class="sortlab">🌱 馬場×脚質
+          <select id="biasSel" class="dd2">
+            <option value="0" selected>フラット（補正なし）</option>
+            <option value="0.18">前有利</option>
+            <option value="0.30">前有利（強）</option>
+            <option value="-0.18">差し有利</option>
+            <option value="-0.30">差し有利（強）</option>
+          </select>
+        </label>
+        <span class="biashint">逃げ・先行／差し・追込に一律補正</span>
       </div>
       <div class="toolbar">
         <label class="sortlab">並び替え
@@ -430,7 +447,7 @@ const $ = s=>document.querySelector(s);
 function show(id){ ['setup','analyze','race','result','sim'].forEach(s=>$('#'+s).style.display = (s===id?'block':'none')); window.scrollTo({top:0,behavior:'smooth'}); }
 
 function makeStats(){ return {kyori:3,course:3,ped:3,jockey:3,trend:3,recent:3}; }
-function blankSubj(){ return {chokyo:'', paddock:''}; }
+function blankSubj(){ return {chokyo:'', paddock:'', dweight:''}; }
 
 function addHorse(num,name,odds){
   num=parseInt(num); odds=parseFloat(odds);
@@ -533,7 +550,7 @@ function loadData(data){
     const ky=(typeof h.kyaku==='number')?KYAKU[((h.kyaku%4)+4)%4]:(KYAKU.find(k=>k.name===h.kyaku)||KYAKU[Math.floor(Math.random()*4)]);
     return {num:+h.num, name:String(h.name), odds:+h.odds, color:COLORS[((+h.num)-1)%COLORS.length], kyaku:ky, face:makeFace(),
       stats:{kyori:+st.kyori||3,course:+st.course||3,ped:+st.ped||3,jockey:+st.jockey||3,trend:+st.trend||3,recent:+st.recent||3},
-      subj:{chokyo:sj.chokyo||'',paddock:sj.paddock||''}};
+      subj:{chokyo:sj.chokyo||'',paddock:sj.paddock||'',dweight:(sj.dweight??'')}};
   }).filter(h=>h.num&&h.name&&h.odds>=1).sort((a,b)=>a.num-b.num);
   renderHorses();
 }
@@ -550,17 +567,35 @@ let weights={odds:55,fact:30,subj:15};
 let analyzeSortMode='num';
 const openEditors=new Set();
 
-function subjScore(s){
-  const c=CHOKYO.indexOf(s.chokyo), p=PAD.indexOf(s.paddock);
-  const cN = c<0 ? 0.5 : c/(CHOKYO.length-1);   // C..S → 0..1、空欄=0.5(中立)
-  const pN = p<0 ? 0.5 : p/(PAD.length-1);       // 消..◎ → 0..1、空欄=0.5(中立)
-  return (cN+pN)/2;
+let raceBias=0;   // 馬場×脚質バイアス: 正=前有利 / 負=差し有利 / 0=フラット
+
+function chokyoN(v){ const i=CHOKYO.indexOf(v); return i<0?0.5:i/(CHOKYO.length-1); } // C..S→0..1、空欄0.5
+function padN(v){ const i=PAD.indexOf(v); return i<0?0.5:i/(PAD.length-1); }            // 消..◎→0..1、空欄0.5
+function weightN(d){                                                                     // 馬体重増減(kg)
+  if(d===''||d==null||d==='-'||isNaN(+d)) return 0.5;
+  const x=+d;
+  if(x<=-18) return 0.32;   // 大幅減：弱め〜中マイナス
+  if(x<=-12) return 0.42;
+  if(x<=-8)  return 0.47;   // やや減：ごく弱いマイナス
+  return 0.5;               // 通常〜増は自動中立（増の解釈は人が確認）
+}
+function biasN(ki){                                                                      // 脚質: 0逃1先2差3追
+  if(!raceBias) return 0.5;
+  const lean=(ki<=1)?1:-1;             // 前(逃・先)か後ろ(差・追)か
+  const mag =(ki===0||ki===3)?1:0.6;   // 極端脚質(逃・追)は強め、中間(先・差)は弱め
+  return Math.max(0.05, Math.min(0.95, 0.5 + lean*raceBias*mag));
+}
+function dayScore(h){
+  const ki=KYAKU.indexOf(h.kyaku);
+  const comps=[ chokyoN(h.subj.chokyo), padN(h.subj.paddock), weightN(h.subj.dweight), biasN(ki) ];
+  const act=comps.filter(v=>Math.abs(v-0.5)>1e-9);  // 中立(0.5)の要素は「情報なし」として除外＝縮約
+  return act.length ? act.reduce((a,b)=>a+b,0)/act.length : 0.5;
 }
 function computeModel(){
   const n=horses.length||1;
   const inv  = horses.map(h=>1/h.odds);
   const fact = horses.map(h=>{ const v=FACTORS.map(f=>h.stats[f[0]]); return (v.reduce((a,b)=>a+b,0)/v.length-1)/4; });
-  const subj = horses.map(h=>subjScore(h.subj));
+  const subj = horses.map(h=>dayScore(h));
   const norm = a=>{ const s=a.reduce((x,y)=>x+y,0); return s>0?a.map(x=>x/s):a.map(()=>1/n); };
   const iN=norm(inv), fN=norm(fact), sN=norm(subj);
   const ws=(weights.odds+weights.fact+weights.subj)||1;
@@ -592,6 +627,7 @@ function renderAnalyze(){
         <div class="subj-selects">
           <select class="dd" data-subj="chokyo" data-num="${h.num}">${chokyoOpts}</select>
           <select class="dd" data-subj="paddock" data-num="${h.num}">${padOpts}</select>
+          <label class="dwfield" title="馬体重増減(kg)。前走比の±を入力。大幅減のみ自動で割引、増は中立">体重<input class="dw" type="number" step="2" inputmode="numeric" placeholder="±kg" data-num="${h.num}" value="${h.subj.dweight}"></label>
         </div>
         <div class="evbadge"><span class="pb" id="pb${h.num}">${(m.prob*100).toFixed(1)}%</span><span class="ev ${m.ev>=1?'val':''}" id="ev${h.num}">EV ${m.ev.toFixed(2)}${m.ev>=1?' 妙味':''}</span></div>
         <button class="expand-btn" data-num="${h.num}">${open?'▲ 馬情報':'▼ 馬情報'}</button>
@@ -605,6 +641,7 @@ function renderAnalyze(){
   el.querySelectorAll('.expand-btn').forEach(b=>b.onclick=()=>{ const n=+b.dataset.num; openEditors.has(n)?openEditors.delete(n):openEditors.add(n); renderAnalyze(); });
   el.querySelectorAll('.seg[data-fac]').forEach(seg=>seg.querySelectorAll('button').forEach(btn=>btn.onclick=()=>{ horses.find(h=>h.num===+seg.dataset.num).stats[seg.dataset.fac]=+btn.dataset.v; renderAnalyze(); }));
   el.querySelectorAll('select.dd[data-subj]').forEach(sel=>sel.onchange=()=>{ horses.find(h=>h.num===+sel.dataset.num).subj[sel.dataset.subj]=sel.value; refreshEV(); });
+  el.querySelectorAll('input.dw[data-num]').forEach(inp=>inp.onchange=()=>{ horses.find(h=>h.num===+inp.dataset.num).subj.dweight=inp.value; refreshEV(); });
 }
 function refreshEV(){
   $('#wv-odds').textContent=weights.odds; $('#wv-fact').textContent=weights.fact; $('#wv-subj').textContent=weights.subj;
@@ -614,6 +651,7 @@ function refreshEV(){
 }
 ['odds','fact','subj'].forEach(k=>{ const s=$('#w-'+k); s.oninput=()=>{ weights[k]=+s.value; refreshEV(); }; });
 $('#sortSel').onchange=e=>{ analyzeSortMode=e.target.value; renderAnalyze(); };
+$('#biasSel').onchange=e=>{ raceBias=+e.target.value; refreshEV(); };
 $('#backSetup2').onclick=()=>show('setup');
 $('#toBet2').onclick=()=>{ startRace(); };
 
