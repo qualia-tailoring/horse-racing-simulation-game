@@ -146,6 +146,25 @@ select.dd2:focus{border-color:var(--turf);}
 .simev b{font-family:'Dela Gothic One'; font-size:14px;}
 .simev.val{color:#c47b00;}
 
+/* ===== スマホ対応 ===== */
+@media (max-width:640px){
+  .wrap{padding:14px 10px 50px;}
+  .panel{padding:14px;}
+  .simhead{display:none;}                         /* 各統計に1着/2着内/3着内ラベルがあるので見出し行は省略 */
+  .simrow{flex-wrap:wrap; gap:5px 8px; padding:8px;}
+  .simrow .smid{flex:1 1 auto; min-width:0;}
+  .simrow .simev{order:4; min-width:auto; margin-left:auto; font-size:12px; white-space:nowrap;}
+  .simrow .simstats{order:5; flex-basis:100%; justify-content:space-between; gap:4px; padding-top:5px; border-top:1px dashed #f0e6d2;}
+  .simrow .simstats .st{min-width:0; flex:1;}
+  .simrow .simstats .st .v{font-size:14px;}
+  /* 分析行も詰まり防止 */
+  .acard{padding:6px 8px;}
+  .atop{gap:6px;}
+  .amid{flex:1 1 auto; min-width:0;}
+  .subj-selects{flex-wrap:wrap; order:5; flex-basis:100%;}
+  .atop .evbadge{margin-left:auto;}
+}
+
 /* ---- Race track ---- */
 #race{display:none;}
 .track{position:relative; background:
@@ -201,7 +220,7 @@ select.dd2:focus{border-color:var(--turf);}
   <header>
     <div class="logo">ウマオジ・<span class="dash">アグリーダービー</span></div>
     <div class="tag">🐎 オッズ＋事実スコアを重みで合成 → 期待値(EV)を見る分析ツール</div>
-    <div style="margin-top:8px"><button class="btn btn-ghost btn-sm" id="styleToggle">👨 おじさん表示中 → 🐎 馬娘へ</button></div>
+    <div style="margin-top:8px"><button class="btn btn-ghost btn-sm" id="styleToggle">🦓 性別で自動（牝=娘 / 牡・セ=おじ） ▸</button></div>
   </header>
 
   <!-- ============ SETUP ============ -->
@@ -213,6 +232,8 @@ select.dd2:focus{border-color:var(--turf);}
         <div class="field"><label>馬番</label><input class="in-num" id="i-num" type="number" min="1" max="18" placeholder="1"></div>
         <div class="field"><label>馬名</label><input class="in-name" id="i-name" type="text" placeholder="ナイスネイチャ"></div>
         <div class="field"><label>単勝オッズ</label><input class="in-odds" id="i-odds" type="number" min="1" step="0.1" placeholder="4.2"></div>
+        <div class="field"><label>性別</label><select id="i-sex" style="width:64px"><option value="牡">牡</option><option value="牝">牝</option><option value="セ">セ</option></select></div>
+        <div class="field"><label>年齢</label><input id="i-age" type="number" min="2" max="12" placeholder="4" style="width:60px"></div>
         <button class="btn btn-primary" id="add">＋ 追加</button>
       </div>
       <div class="flexbtn" style="justify-content:flex-start">
@@ -347,7 +368,7 @@ const KYAKU = [
 let horses = [];      // {num,name,odds,color,kyaku,face,stats,subj}
 
 /* ---------- avatar (style switch + おじさん variations) ---------- */
-let avatarStyle = 'oji';   // 'oji' | 'uma'
+let avatarStyle = 'auto';   // 'auto'(性別で自動) | 'oji'(全部おじ) | 'uma'(全部娘)
 function makeFace(){
   return {
     build : Math.random()<0.42 ? 'fat' : 'normal',
@@ -356,8 +377,12 @@ function makeFace(){
     hair  : ['#574a44','#6e6e6e','#7a6a55','#33302c'][Math.floor(Math.random()*4)]
   };
 }
-function avatar(color, face){
-  return avatarStyle==='uma'
+function avatar(color, face, sex){
+  let useUma;
+  if(avatarStyle==='uma') useUma=true;
+  else if(avatarStyle==='oji') useUma=false;
+  else useUma = (sex==='牝');          // auto: 牝→娘、牡・セ→おじ
+  return useUma
     ? avatarUma(color)
     : avatarOji(color, face || {build:'normal',glasses:false,bald:false,hair:'#574a44'});
 }
@@ -449,12 +474,12 @@ function show(id){ ['setup','analyze','race','result','sim'].forEach(s=>$('#'+s)
 function makeStats(){ return {kyori:3,course:3,ped:3,jockey:3,trend:3,recent:3}; }
 function blankSubj(){ return {chokyo:'', paddock:'', dweight:''}; }
 
-function addHorse(num,name,odds){
+function addHorse(num,name,odds,sex,age){
   num=parseInt(num); odds=parseFloat(odds);
   if(!num||!name||!odds||odds<1){ alert('馬番・馬名・オッズ（1.0以上）を入力してください'); return; }
   if(horses.some(h=>h.num===num)){ alert('その馬番はすでに登録済みです'); return; }
   if(horses.length>=18){ alert('最大18頭までです'); return; }
-  horses.push({num,name,odds,color:COLORS[(num-1)%COLORS.length],kyaku:KYAKU[Math.floor(Math.random()*KYAKU.length)],face:makeFace(),stats:makeStats(),subj:blankSubj()});
+  horses.push({num,name,odds,sex:sex||'牡',age:parseInt(age)||4,color:COLORS[(num-1)%COLORS.length],kyaku:KYAKU[Math.floor(Math.random()*KYAKU.length)],face:makeFace(),stats:makeStats(),subj:blankSubj()});
   horses.sort((a,b)=>a.num-b.num);
   renderHorses();
 }
@@ -464,8 +489,8 @@ function renderHorses(){
     const d=document.createElement('div'); d.className='hcard';
     d.innerHTML=`<span class="no" style="background:${frameColor(h.num)};color:${textColor(h.num)}">${h.num}</span>
       <button class="del" data-num="${h.num}">×</button>
-      ${avatar(h.color,h.face)}
-      <div class="meta"><div class="nm">${escapeHtml(h.name)}</div><div class="od">単勝 ${h.odds.toFixed(1)}倍</div>
+      ${avatar(h.color,h.face,h.sex)}
+      <div class="meta"><div class="nm">${escapeHtml(h.name)}</div><div class="od">${h.sex||'牡'}${h.age||''} ／ 単勝 ${h.odds.toFixed(1)}倍</div>
       <span class="kyaku">${h.kyaku.name}</span></div>`;
     el.appendChild(d);
   });
@@ -474,69 +499,71 @@ function renderHorses(){
 }
 function escapeHtml(s){ return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
-/* プリセット投入の共通処理。row=[馬番,馬名,オッズ,脚質idx,[距,コ,血,騎,傾,近]] */
+/* プリセット投入の共通処理。row=[馬番,馬名,オッズ,脚質idx,[距,コ,血,騎,傾,近],性別,年齢,体重増減] ※性別以降は省略可 */
 function loadPreset(rows){
   horses=[];
-  rows.forEach(r=>horses.push({num:r[0],name:r[1],odds:r[2],color:COLORS[(r[0]-1)%COLORS.length],kyaku:KYAKU[r[3]],face:makeFace(),
-    stats:{kyori:r[4][0],course:r[4][1],ped:r[4][2],jockey:r[4][3],trend:r[4][4],recent:r[4][5]},subj:blankSubj()}));
+  rows.forEach(r=>horses.push({num:r[0],name:r[1],odds:r[2],sex:r[5]||'牡',age:r[6]||4,color:COLORS[(r[0]-1)%COLORS.length],kyaku:KYAKU[r[3]],face:makeFace(),
+    stats:{kyori:r[4][0],course:r[4][1],ped:r[4][2],jockey:r[4][3],trend:r[4][4],recent:r[4][5]},
+    subj:{chokyo:'',paddock:'',dweight:(r[7]!=null&&r[7]!=='')?String(r[7]):''}}));
   renderHorses();
 }
 
-$('#add').onclick=()=>{ addHorse($('#i-num').value,$('#i-name').value.trim(),$('#i-odds').value);
-  $('#i-num').value='';$('#i-name').value='';$('#i-odds').value=''; $('#i-num').focus(); };
+$('#add').onclick=()=>{ addHorse($('#i-num').value,$('#i-name').value.trim(),$('#i-odds').value,$('#i-sex').value,$('#i-age').value);
+  $('#i-num').value='';$('#i-name').value='';$('#i-odds').value='';$('#i-age').value=''; $('#i-num').focus(); };
 $('#i-odds').addEventListener('keydown',e=>{ if(e.key==='Enter') $('#add').click(); });
+$('#i-age').addEventListener('keydown',e=>{ if(e.key==='Enter') $('#add').click(); });
 $('#clear').onclick=()=>{ if(confirm('全消去しますか？')){ horses=[]; renderHorses(); } };
 
 $('#sample').onclick=()=>loadPreset([
-  [1,'サクラエクスプレス',2.4,1,[3,3,3,3,3,3]],
-  [2,'ミルキーアロー',4.1,2,[5,5,4,5,4,5]],
-  [3,'ゴウケツガイア',6.8,1,[4,3,4,4,3,4]],
-  [4,'シャイニングノヴァ',9.5,2,[3,4,3,3,4,3]],
-  [5,'ハルカゼスズラン',13.2,1,[3,3,3,2,3,3]],
-  [6,'テンペストロア',21.0,2,[4,4,3,4,4,4]],
-  [7,'オーロラブレイズ',38.5,3,[2,2,3,2,2,2]],
-  [8,'ライトニングルー',57.0,2,[2,3,2,2,2,3]]]);
+  [1,'サクラエクスプレス',2.4,1,[3,3,3,3,3,3],'牡',5],
+  [2,'ミルキーアロー',4.1,2,[5,5,4,5,4,5],'牝',4],
+  [3,'ゴウケツガイア',6.8,1,[4,3,4,4,3,4],'牡',6],
+  [4,'シャイニングノヴァ',9.5,2,[3,4,3,3,4,3],'牝',4],
+  [5,'ハルカゼスズラン',13.2,1,[3,3,3,2,3,3],'牝',5],
+  [6,'テンペストロア',21.0,2,[4,4,3,4,4,4],'牡',5],
+  [7,'オーロラブレイズ',38.5,3,[2,2,3,2,2,2],'牝',4],
+  [8,'ライトニングルー',57.0,2,[2,3,2,2,2,3],'セ',7]]);
 
 $('#loadYasuda').onclick=()=>loadPreset([
-  // 第76回 安田記念(2026/6/7 東京芝1600m)。上位8頭は実オッズ、9人気以下は推定。
-  [1,'レーベンスティール',8.5,2,[4,4,4,4,3,4]],
-  [2,'ロングラン',210,1,[2,2,2,2,2,2]],
-  [3,'オフトレイル',38,2,[4,4,3,3,4,3]],
-  [4,'シックスペンス',21.6,0,[4,4,4,4,4,3]],
-  [5,'サクラトゥジュール',170,2,[3,3,3,2,2,2]],
-  [6,'ステレンボッシュ',10.5,2,[3,4,5,4,3,4]],
-  [7,'スズハローム',70,1,[3,3,3,3,3,4]],
-  [8,'シャンパンカラー',55,2,[4,4,3,3,3,2]],
-  [9,'ウォーターリヒト',30,2,[4,4,3,3,2,2]],
-  [10,'ルクソールカフェ',110,3,[2,2,2,2,2,2]],
-  [11,'ワールズエンド',15.1,1,[3,4,3,4,3,4]],
-  [12,'シリウスコルト',140,2,[3,3,3,2,2,2]],
-  [13,'セイウンハーデス',14.7,1,[3,4,3,3,3,3]],
-  [14,'ガイアフォース',2.9,2,[5,5,4,3,5,4]],
-  [15,'ドラゴンブースト',88,3,[3,3,3,2,2,3]],
-  [16,'パンジャタワー',9.5,1,[4,4,4,3,3,3]],
-  [17,'トロヴァトーレ',4.2,2,[3,4,3,4,3,5]]]);
+  // 第76回 安田記念(2026/6/7 東京芝1600m)。上位8頭は実オッズ、9人気以下は推定。性齢は参考値。
+  [1,'レーベンスティール',8.5,2,[4,4,4,4,3,4],'牡',5],
+  [2,'ロングラン',210,1,[2,2,2,2,2,2],'牡',5],
+  [3,'オフトレイル',38,2,[4,4,3,3,4,3],'牡',5],
+  [4,'シックスペンス',21.6,0,[4,4,4,4,4,3],'牡',5],
+  [5,'サクラトゥジュール',170,2,[3,3,3,2,2,2],'牡',7],
+  [6,'ステレンボッシュ',10.5,2,[3,4,5,4,3,4],'牝',5],
+  [7,'スズハローム',70,1,[3,3,3,3,3,4],'牡',5],
+  [8,'シャンパンカラー',55,2,[4,4,3,3,3,2],'牡',6],
+  [9,'ウォーターリヒト',30,2,[4,4,3,3,2,2],'牡',4],
+  [10,'ルクソールカフェ',110,3,[2,2,2,2,2,2],'牡',4],
+  [11,'ワールズエンド',15.1,1,[3,4,3,4,3,4],'牡',5],
+  [12,'シリウスコルト',140,2,[3,3,3,2,2,2],'牡',4],
+  [13,'セイウンハーデス',14.7,1,[3,4,3,3,3,3],'牡',7],
+  [14,'ガイアフォース',2.9,2,[5,5,4,3,5,4],'牡',7],
+  [15,'ドラゴンブースト',88,3,[3,3,3,2,2,3],'牡',5],
+  [16,'パンジャタワー',9.5,1,[4,4,4,3,3,3],'牡',4],
+  [17,'トロヴァトーレ',4.2,2,[3,4,3,4,3,5],'牡',5]]);
 
 $('#loadTakarazuka').onclick=()=>loadPreset([
-  // 第67回 宝塚記念(2026/6/14 阪神芝2200m)。馬番は枠順確定前のため五十音順の仮番号、オッズは予想オッズ。
-  [1,'クロワデュノール',2.3,1,[5,5,4,4,4,5]],
-  [2,'コスモキュランダ',42.3,2,[3,3,3,3,3,2]],
-  [3,'シェイクユアハート',42.5,2,[3,3,3,2,2,2]],
-  [4,'シュガークン',79.5,2,[3,3,3,2,2,2]],
-  [5,'ジューンテイク',41.0,1,[3,3,3,3,2,3]],
-  [6,'シンエンペラー',62.6,2,[3,3,3,3,2,2]],
-  [7,'スティンガーグラス',40.6,2,[3,3,3,3,2,3]],
-  [8,'タガノデュード',55.3,2,[2,3,3,2,2,3]],
-  [9,'ダノンデサイル',10.2,1,[4,4,4,4,3,3]],
-  [10,'ビザンチンドリーム',25.5,2,[3,3,3,3,3,3]],
-  [11,'ファミリータイム',64.6,1,[2,3,3,2,2,2]],
-  [12,'マイネルエンペラー',54.5,1,[3,3,3,4,2,3]],
-  [13,'マイユニバース',17.0,1,[3,3,3,4,3,3]],
-  [14,'ミクニインスパイア',28.6,1,[3,3,3,3,3,3]],
-  [15,'ミステリーウェイ',141.3,3,[2,2,2,2,2,2]],
-  [16,'ミュージアムマイル',5.3,2,[4,3,4,4,3,3]],
-  [17,'メイショウタバル',5.0,0,[5,5,5,4,5,4]],
-  [18,'レガレイラ',10.3,2,[4,3,4,5,3,3]]]);
+  // 第67回 宝塚記念(2026/6/14 阪神芝2200m)。馬番は枠順確定前のため五十音順の仮番号、オッズは予想オッズ、体重増減は当日発表後に追記。
+  [1,'クロワデュノール',2.3,1,[5,5,4,4,4,5],'牡',4],
+  [2,'コスモキュランダ',42.3,2,[3,3,3,3,3,2],'牡',5],
+  [3,'シェイクユアハート',42.5,2,[3,3,3,2,2,2],'牡',6],
+  [4,'シュガークン',79.5,2,[3,3,3,2,2,2],'牡',5],
+  [5,'ジューンテイク',41.0,1,[3,3,3,3,2,3],'牡',5],
+  [6,'シンエンペラー',62.6,2,[3,3,3,3,2,2],'牡',5],
+  [7,'スティンガーグラス',40.6,2,[3,3,3,3,2,3],'牡',5],
+  [8,'タガノデュード',55.3,2,[2,3,3,2,2,3],'牡',5],
+  [9,'ダノンデサイル',10.2,1,[4,4,4,4,3,3],'牡',5],
+  [10,'ビザンチンドリーム',25.5,2,[3,3,3,3,3,3],'牡',5],
+  [11,'ファミリータイム',64.6,1,[2,3,3,2,2,2],'牡',5],
+  [12,'マイネルエンペラー',54.5,1,[3,3,3,4,2,3],'牡',6],
+  [13,'マイユニバース',17.0,1,[3,3,3,4,3,3],'牡',4],
+  [14,'ミクニインスパイア',28.6,1,[3,3,3,3,3,3],'牡',5],
+  [15,'ミステリーウェイ',141.3,3,[2,2,2,2,2,2],'セ',8],
+  [16,'ミュージアムマイル',5.3,2,[4,3,4,4,3,3],'牡',4],
+  [17,'メイショウタバル',5.0,0,[5,5,5,4,5,4],'牡',5],
+  [18,'レガレイラ',10.3,2,[4,3,4,5,3,3],'牝',5]]);
 
 $('#toBet').onclick=()=>{ renderAnalyze(); show('analyze'); };
 
@@ -548,7 +575,7 @@ function loadData(data){
   horses = list.map(h=>{
     const st=h.stats||{}, sj=h.subj||{};
     const ky=(typeof h.kyaku==='number')?KYAKU[((h.kyaku%4)+4)%4]:(KYAKU.find(k=>k.name===h.kyaku)||KYAKU[Math.floor(Math.random()*4)]);
-    return {num:+h.num, name:String(h.name), odds:+h.odds, color:COLORS[((+h.num)-1)%COLORS.length], kyaku:ky, face:makeFace(),
+    return {num:+h.num, name:String(h.name), odds:+h.odds, sex:h.sex||'牡', age:+h.age||4, color:COLORS[((+h.num)-1)%COLORS.length], kyaku:ky, face:makeFace(),
       stats:{kyori:+st.kyori||3,course:+st.course||3,ped:+st.ped||3,jockey:+st.jockey||3,trend:+st.trend||3,recent:+st.recent||3},
       subj:{chokyo:sj.chokyo||'',paddock:sj.paddock||'',dweight:(sj.dweight??'')}};
   }).filter(h=>h.num&&h.name&&h.odds>=1).sort((a,b)=>a.num-b.num);
@@ -556,7 +583,7 @@ function loadData(data){
 }
 function exportData(){
   return JSON.stringify({ race:{name:'',course:'',date:''}, weights:{...weights},
-    horses:horses.map(h=>({num:h.num,name:h.name,odds:h.odds,kyaku:KYAKU.indexOf(h.kyaku),
+    horses:horses.map(h=>({num:h.num,name:h.name,odds:h.odds,sex:h.sex,age:h.age,kyaku:KYAKU.indexOf(h.kyaku),
       stats:{...h.stats}, subj:{...h.subj}})) }, null, 2);
 }
 
@@ -622,8 +649,8 @@ function renderAnalyze(){
     const card=document.createElement('div'); card.className='acard';
     card.innerHTML=`
       <div class="atop">
-        ${avatar(h.color,h.face)}
-        <div class="amid"><div class="nm">${h.num}. ${escapeHtml(h.name)}</div><div class="od">単${h.odds.toFixed(1)}</div></div>
+        ${avatar(h.color,h.face,h.sex)}
+        <div class="amid"><div class="nm">${h.num}. ${escapeHtml(h.name)}</div><div class="od">${h.sex||'牡'}${h.age||''}・単${h.odds.toFixed(1)}</div></div>
         <div class="subj-selects">
           <select class="dd" data-subj="chokyo" data-num="${h.num}">${chokyoOpts}</select>
           <select class="dd" data-subj="paddock" data-num="${h.num}">${padOpts}</select>
@@ -685,7 +712,7 @@ function monteCarlo(N){
     }
   }
   return horses.map(h=>{ const tt=tally[h.num];
-    return {num:h.num,name:h.name,odds:h.odds,color:h.color,face:h.face,
+    return {num:h.num,name:h.name,odds:h.odds,sex:h.sex,color:h.color,face:h.face,
       win:tt.win/N, t2:tt.t2/N, t3:tt.t3/N, avg:tt.sr/N, ev:(tt.win/N)*h.odds}; });
 }
 function sortSim(res,mode){
@@ -704,7 +731,7 @@ function renderSim(){
   rows.forEach(r=>{
     const d=document.createElement('div'); d.className='simrow';
     d.innerHTML=`<span class="rk">${r.num}</span>
-      ${avatar(r.color,r.face)}
+      ${avatar(r.color,r.face,r.sex)}
       <div class="smid"><div class="nm">${escapeHtml(r.name)}</div><div class="od">単${r.odds.toFixed(1)} / 平均${r.avg.toFixed(1)}着</div>
         <div class="fukubar"><i style="width:${(r.t3*100).toFixed(0)}%"></i></div></div>
       <div class="simstats">
@@ -749,7 +776,7 @@ function startRace(){
   runners.forEach(r=>{
     const lane=document.createElement('div'); lane.className='lane';
     lane.innerHTML=`<div class="runner run" id="r${r.num}" style="left:6%">
-        <div class="dust"></div>${avatar(r.color,r.face)}
+        <div class="dust"></div>${avatar(r.color,r.face,r.sex)}
         <span class="badge" style="background:${frameColor(r.num)};color:${textColor(r.num)}">${r.num}</span>
       </div>`;
     track.appendChild(lane);
@@ -807,13 +834,13 @@ function renderResult(R){
   [2,1,3].forEach(rk=>{
     const r=order[rk-1]; if(!r) return;
     const d=document.createElement('div'); d.className='pod p'+rk;
-    d.innerHTML=`${avatar(r.color,r.face)}<div class="bar">${rk}</div><div class="lbl">${r.num}.${escapeHtml(r.name)}</div>`;
+    d.innerHTML=`${avatar(r.color,r.face,r.sex)}<div class="bar">${rk}</div><div class="lbl">${r.num}.${escapeHtml(r.name)}</div>`;
     pod.appendChild(d);
   });
   const fo=$('#fullOrder'); fo.innerHTML='<h2 style="font-size:14px;margin:6px 0 4px;color:#5a5466">全着順（シミュレーション）</h2>';
   order.forEach((r,i)=>{
     const row=document.createElement('div'); row.className='ord-row';
-    row.innerHTML=`<span class="rk">${i+1}</span>${avatar(r.color,r.face)}<span class="nm">${r.num}. ${escapeHtml(r.name)}</span><span class="tm">単${r.odds.toFixed(1)} / ${r.kyaku.name}</span>`;
+    row.innerHTML=`<span class="rk">${i+1}</span>${avatar(r.color,r.face,r.sex)}<span class="nm">${r.num}. ${escapeHtml(r.name)}</span><span class="tm">単${r.odds.toFixed(1)} / ${r.kyaku.name}</span>`;
     fo.appendChild(row);
   });
 }
@@ -831,14 +858,15 @@ function refreshAvatars(){
     document.querySelectorAll('#track .runner').forEach(el=>{
       const num=+el.id.slice(1); const h=horses.find(x=>x.num===num); if(!h) return;
       const old=el.querySelector('.av');
-      if(old){ const tmp=document.createElement('div'); tmp.innerHTML=avatar(h.color,h.face); old.replaceWith(tmp.firstElementChild); }
+      if(old){ const tmp=document.createElement('div'); tmp.innerHTML=avatar(h.color,h.face,h.sex); old.replaceWith(tmp.firstElementChild); }
     });
   }
 }
+const STYLE_ORDER=['auto','oji','uma'];
+const STYLE_LABEL={auto:'🦓 性別で自動（牝=娘 / 牡・セ=おじ）', oji:'👨 全部おじさん', uma:'🐎 全部娘'};
 $('#styleToggle').onclick=()=>{
-  avatarStyle = avatarStyle==='oji' ? 'uma' : 'oji';
-  $('#styleToggle').innerHTML = avatarStyle==='oji'
-    ? '👨 おじさん表示中 → 🐎 馬娘へ' : '🐎 馬娘表示中 → 👨 おじさんへ';
+  avatarStyle = STYLE_ORDER[(STYLE_ORDER.indexOf(avatarStyle)+1)%STYLE_ORDER.length];
+  $('#styleToggle').textContent = STYLE_LABEL[avatarStyle]+' ▸';
   refreshAvatars();
 };
 
