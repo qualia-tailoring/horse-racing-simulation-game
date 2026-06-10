@@ -145,19 +145,38 @@ select.dd2:focus{border-color:var(--turf);}
 .simev{min-width:62px; text-align:right; font-weight:900; font-size:11px; color:var(--ink2); line-height:1.2;}
 .simev b{font-family:'Dela Gothic One'; font-size:14px;}
 .simev.val{color:#c47b00;}
+/* 買い目提案 */
+.tabs{display:flex; gap:8px; margin-bottom:12px;}
+.tab{flex:1; text-align:center; padding:10px; border-radius:12px; cursor:pointer; font-weight:900; font-size:13px; background:#fff; border:2px solid #e7ddc8; color:var(--ink2);}
+.tab.on{background:var(--turf); color:#fff; border-color:var(--turf); box-shadow:0 3px 0 var(--turf-dark);}
+.tabpane{display:none;}
+.tabpane.on{display:block;}
+.betbox{margin-top:16px; border-top:2px dashed #ece4d2; padding-top:14px;}
+.betbox h3{font-family:'Dela Gothic One'; font-size:15px; color:var(--turf-dark); margin-bottom:6px;}
+.betverdict{display:inline-block; font-family:'Dela Gothic One'; font-size:14px; padding:4px 14px; border-radius:999px; margin:6px 0;}
+.betverdict.buy{background:#eafaef; color:var(--turf-dark); border:2px solid var(--turf);}
+.betverdict.miss{background:#f4f1f6; color:#8a8298; border:2px solid #d6cfe0;}
+.betgrp{margin:8px 0;}
+.betgrp h4{font-size:12px; font-weight:900; color:var(--ink2); margin:6px 0 4px;}
+.betline{display:flex; align-items:center; gap:8px; flex-wrap:wrap; background:#fff; border:2px solid #f0e6d2; border-radius:10px; padding:6px 10px; margin-bottom:5px;}
+.betline .bt{font-weight:900; font-size:11px; color:#fff; background:var(--turf); border-radius:6px; padding:2px 8px;}
+.betline .bl{font-family:'Dela Gothic One'; font-size:13px; color:var(--ink);}
+.betline .bp{font-size:11px; color:var(--ink2); font-weight:700;}
+.betline .bs{margin-left:auto; font-family:'Dela Gothic One'; font-size:14px; color:#c47b00;}
+.betsum{background:#fff7e6; border:2px solid var(--gold); border-radius:12px; padding:10px 12px; font-size:12px; font-weight:900; color:var(--ink); margin-top:8px; line-height:1.7;}
+.betsum.warn{background:#fdecec; border-color:#e0534d; color:#7a1f1b;}
 
 /* ===== スマホ対応 ===== */
 @media (max-width:640px){
   .wrap{padding:14px 10px 50px;}
   .panel{padding:14px;}
-  .simhead{display:none;}                         /* 各統計に1着/2着内/3着内ラベルがあるので見出し行は省略 */
+  .simhead{display:none;}
   .simrow{flex-wrap:wrap; gap:5px 8px; padding:8px;}
   .simrow .smid{flex:1 1 auto; min-width:0;}
   .simrow .simev{order:4; min-width:auto; margin-left:auto; font-size:12px; white-space:nowrap;}
   .simrow .simstats{order:5; flex-basis:100%; justify-content:space-between; gap:4px; padding-top:5px; border-top:1px dashed #f0e6d2;}
   .simrow .simstats .st{min-width:0; flex:1;}
   .simrow .simstats .st .v{font-size:14px;}
-  /* 分析行も詰まり防止 */
   .acard{padding:6px 8px;}
   .atop{gap:6px;}
   .amid{flex:1 1 auto; min-width:0;}
@@ -255,9 +274,9 @@ select.dd2:focus{border-color:var(--turf);}
       <h2><span class="ic">📊</span>分析・期待値(EV)</h2>
       <p class="hint">オッズ＋事実スコア（運用側）＋当日（調教・パドック・馬体重増減＋馬場バイアス）を重みで合成し、モデル勝率と期待値を算出します。<b>EV＞1.00＝妙味</b>。当日層は情報がある馬・項目だけが動き、無入力は中立に縮約されます（体重は大幅減のみ自動割引、増は中立）。重みは比率（合計は自動で100%換算）。</p>
       <div class="weights">
-        <div class="wrow"><label>オッズ</label><input type="range" id="w-odds" min="0" max="100" value="55"><span class="wv" id="wv-odds">55</span></div>
-        <div class="wrow"><label>事実</label><input type="range" id="w-fact" min="0" max="100" value="30"><span class="wv" id="wv-fact">30</span></div>
-        <div class="wrow"><label>当日</label><input type="range" id="w-subj" min="0" max="100" value="15"><span class="wv" id="wv-subj">15</span></div>
+        <div class="wrow"><label>オッズ</label><input type="range" id="w-odds" min="0" max="100" value="40"><span class="wv" id="wv-odds">40</span></div>
+        <div class="wrow"><label>事実</label><input type="range" id="w-fact" min="0" max="100" value="40"><span class="wv" id="wv-fact">40</span></div>
+        <div class="wrow"><label>当日</label><input type="range" id="w-subj" min="0" max="100" value="20"><span class="wv" id="wv-subj">20</span></div>
       </div>
       <div class="biasrow">
         <label class="sortlab">🌱 馬場×脚質
@@ -321,27 +340,46 @@ select.dd2:focus{border-color:var(--turf);}
   <section id="sim">
     <div class="panel">
       <h2><span class="ic">📊</span>確率の収束（モンテカルロ）</h2>
-      <p class="hint">モデル勝率に沿って多数回レースを試行し、1回限りのジャイアントキリングを均した着順分布です。<b id="simTrials">1,000</b>回試行。単EV＝シミュ1着率×単勝オッズ（<b>1.00超で妙味</b>）。複勝バーは3着内率。</p>
-      <div class="toolbar">
-        <label class="sortlab">試行回数
-          <select id="simN" class="dd2">
-            <option value="200">200回</option>
-            <option value="1000" selected>1,000回</option>
-            <option value="5000">5,000回</option>
-          </select>
-        </label>
-        <label class="sortlab">並び
-          <select id="simSort" class="dd2">
-            <option value="win">1着率順</option>
-            <option value="t3">複勝率順</option>
-            <option value="ev">単EV順</option>
-            <option value="num">馬番順</option>
-          </select>
-        </label>
-        <button class="btn btn-ghost btn-sm" id="simAgain">🔄 再シミュ</button>
+      <div class="tabs">
+        <div class="tab on" data-pane="sim">📊 確率の結果</div>
+        <div class="tab" data-pane="bet">🧮 買い方提案</div>
       </div>
-      <div class="simhead"><span style="width:22px"></span><span style="width:28px"></span><span style="flex:1 1 120px">馬</span><span class="simstats"><span class="st">1着</span><span class="st">2着内</span><span class="st">3着内</span></span><span class="simev">単EV</span></div>
-      <div id="simtable"></div>
+
+      <div class="tabpane on" id="pane-sim">
+        <p class="hint">モデル勝率に沿って多数回レースを試行し、1回限りのジャイアントキリングを均した着順分布です。<b id="simTrials">1,000</b>回試行。単EV＝シミュ1着率×単勝オッズ（<b>1.00超で妙味</b>）。複勝バーは3着内率。</p>
+        <div class="toolbar">
+          <label class="sortlab">試行回数
+            <select id="simN" class="dd2">
+              <option value="200">200回</option>
+              <option value="1000" selected>1,000回</option>
+              <option value="5000">5,000回</option>
+            </select>
+          </label>
+          <label class="sortlab">並び
+            <select id="simSort" class="dd2">
+              <option value="win">1着率順</option>
+              <option value="t3">複勝率順</option>
+              <option value="ev">単EV順</option>
+              <option value="num">馬番順</option>
+            </select>
+          </label>
+          <button class="btn btn-ghost btn-sm" id="simAgain">🔄 再シミュ</button>
+        </div>
+        <div class="simhead"><span style="width:22px"></span><span style="width:28px"></span><span style="flex:1 1 120px">馬</span><span class="simstats"><span class="st">1着</span><span class="st">2着内</span><span class="st">3着内</span></span><span class="simev">単EV</span></div>
+        <div id="simtable"></div>
+      </div>
+
+      <div class="tabpane" id="pane-bet">
+        <div class="betbox">
+          <h3>🧮 買い方の提案（+EVのみ）</h3>
+          <p class="hint">この試行結果(sim_p)と市場オッズからEV＝sim_p×オッズを評価し、「堅く取る（複勝・ワイド）」「広く取る（3連複）」の+EV買い目だけを提案します。+EVが無ければ<b>見送り</b>。複勝・連系のオッズは単勝からの推定値です。</p>
+          <div class="toolbar">
+            <label class="sortlab">資金 ¥<input id="betBank" type="number" min="100" step="100" value="10000" style="width:96px"></label>
+            <button class="btn btn-ghost btn-sm" id="betBtn">🧮 買い目を再計算</button>
+          </div>
+          <div id="betOut"></div>
+        </div>
+      </div>
     </div>
     <div class="flexbtn">
       <button class="btn btn-ghost" id="simBack">◀ 分析へ戻る</button>
@@ -590,7 +628,7 @@ function exportData(){
 /* ---------- analyze / EV model ---------- */
 const FACTORS=[['kyori','距離'],['course','コース'],['ped','血統'],['jockey','騎手'],['trend','傾向'],['recent','近走']];
 const CHOKYO=['C','B','A','S'], PAD=['消','△','▲','○','◎'];
-let weights={odds:55,fact:30,subj:15};
+let weights={odds:40,fact:40,subj:20};
 let analyzeSortMode='num';
 const openEditors=new Set();
 
@@ -704,16 +742,19 @@ function monteCarlo(N){
   const model=computeModel(); const pByNum={}; model.forEach(m=>pByNum[m.num]=m.prob);
   const base=horses.map(h=>({num:h.num,curve:h.kyaku.curve,p:pByNum[h.num]}));
   const tally={}; horses.forEach(h=>tally[h.num]={win:0,t2:0,t3:0,sr:0});
+  const trials=[];
   for(let i=0;i<N;i++){
     const order=simFinishOrder(base);
+    trials.push(order);
     for(let idx=0;idx<order.length;idx++){
       const rk=idx+1, tt=tally[order[idx]];
       if(rk===1)tt.win++; if(rk<=2)tt.t2++; if(rk<=3)tt.t3++; tt.sr+=rk;
     }
   }
-  return horses.map(h=>{ const tt=tally[h.num];
+  const res=horses.map(h=>{ const tt=tally[h.num];
     return {num:h.num,name:h.name,odds:h.odds,sex:h.sex,color:h.color,face:h.face,
       win:tt.win/N, t2:tt.t2/N, t3:tt.t3/N, avg:tt.sr/N, ev:(tt.win/N)*h.odds}; });
+  return {res, trials};
 }
 function sortSim(res,mode){
   const a=[...res];
@@ -747,15 +788,167 @@ function runSim(){
   if(horses.length<3){ alert('3頭以上で実行してください'); return; }
   const N=+($('#simN').value||1000);
   show('sim');
+  showSimPane('sim');
   $('#simtable').innerHTML='<p class="hint" style="padding:12px">計算中… '+N.toLocaleString()+'回試行</p>';
-  setTimeout(()=>{ lastSim={res:monteCarlo(N), N}; renderSim(); }, 30);
+  $('#betOut').innerHTML='';
+  setTimeout(()=>{ const mc=monteCarlo(N); lastSim={res:mc.res, trials:mc.trials, N}; renderSim(); runProposal(); }, 30);
 }
 $('#simBtn').onclick=runSim;
 $('#simAgain').onclick=runSim;
 $('#simN').onchange=runSim;
 $('#simSort').onchange=renderSim;
+$('#betBtn').onclick=runProposal;
 $('#simBack').onclick=()=>{ renderAnalyze(); show('analyze'); };
 $('#simToRace').onclick=()=>{ startRace(); };
+function showSimPane(pane){
+  document.querySelectorAll('#sim .tab').forEach(t=>t.classList.toggle('on', t.dataset.pane===pane));
+  $('#pane-sim').classList.toggle('on', pane==='sim');
+  $('#pane-bet').classList.toggle('on', pane==='bet');
+}
+document.querySelectorAll('#sim .tab').forEach(tab=>tab.onclick=()=>showSimPane(tab.dataset.pane));
+
+/* ===========================================================
+   買い方提案エンジン（別チャットで設計した proposeBets を合流）
+   sim_p は trials からのみ算出。市場オッズは別系統(estOdds)で評価。
+=========================================================== */
+const inTop3=(t,h)=>t.slice(0,3).includes(h);
+const PRED={
+  tan:        (t,[a])     => t[0]===a,
+  fuku:       (t,[a])     => inTop3(t,a),
+  wide:       (t,[a,b])   => inTop3(t,a)&&inTop3(t,b),
+  umaren:     (t,[a,b])   => { const s=new Set(t.slice(0,2)); return s.has(a)&&s.has(b); },
+  umatan:     (t,[a,b])   => t[0]===a&&t[1]===b,
+  sanrenpuku: (t,[a,b,c]) => { const s=new Set(t.slice(0,3)); return s.has(a)&&s.has(b)&&s.has(c); },
+  sanrentan:  (t,[a,b,c]) => t[0]===a&&t[1]===b&&t[2]===c,
+};
+const TYPE_LABEL={tan:'単勝',fuku:'複勝',wide:'ワイド',umaren:'馬連',umatan:'馬単',sanrenpuku:'3連複',sanrentan:'3連単'};
+function lineStats(trials,type,legs){ const pred=PRED[type]; let hits=0; for(const t of trials) if(pred(t,legs)) hits++; return {p:hits/trials.length,hits}; }
+function fukushoRates(trials,hs){ const r={}; for(const h of hs) r[h]=lineStats(trials,'fuku',[h]).p; return r; }
+
+/* --- 市場オッズ：単勝は実オッズ、複勝・連系は単勝からのHarville推定 --- */
+const TAKE={tan:0.20,fuku:0.20,wide:0.225,umaren:0.225,umatan:0.225,sanrenpuku:0.25,sanrentan:0.275};
+function marketWinP(){ const q=horses.map(h=>1/h.odds), Q=q.reduce((a,b)=>a+b,0); const m={}; horses.forEach((h,i)=>m[h.num]=q[i]/Q); return m; }
+function harvSeq(p,seq){ let prob=1,used=0; for(const n of seq){ const d=1-used; if(d<=1e-9) return 0; prob*=p[n]/d; used+=p[n]; } return prob; }
+function perms3(a,b,c){ return [[a,b,c],[a,c,b],[b,a,c],[b,c,a],[c,a,b],[c,b,a]]; }
+function comboP(p,type,legs){
+  if(type==='umatan')     return harvSeq(p,[legs[0],legs[1]]);
+  if(type==='umaren')     { const [a,b]=legs; return harvSeq(p,[a,b])+harvSeq(p,[b,a]); }
+  if(type==='sanrentan')  return harvSeq(p,legs);
+  if(type==='sanrenpuku') { const [a,b,c]=legs; return perms3(a,b,c).reduce((s,pm)=>s+harvSeq(p,pm),0); }
+  if(type==='wide'){ const [a,b]=legs; let s=0; for(const h of horses){ const c=h.num; if(c===a||c===b) continue; s+=perms3(a,b,c).reduce((x,pm)=>x+harvSeq(p,pm),0); } return s; }
+  if(type==='fuku'){ const a=legs[0]; let P=p[a]; for(const hb of horses){ const b=hb.num; if(b===a) continue; P+=harvSeq(p,[b,a]); for(const hc of horses){ const c=hc.num; if(c===a||c===b) continue; P+=harvSeq(p,[b,c,a]); } } return P; }
+  return 0;
+}
+function estOdds(type,legs){
+  if(type==='tan'){ const h=horses.find(x=>x.num===legs[0]); return h?h.odds:null; }
+  const p=marketWinP(); const pc=comboP(p,type,legs);
+  if(!(pc>0)) return null;
+  return (1-TAKE[type])/pc;
+}
+
+function proposeBets(trials,horseNums,oddsOf,cfg={}){
+  const c={ bankroll:10000, tau:0.10, minHits:20, kelly:0.25, capPerBet:0.05, securePct:0.6, widePoolTopK:8, haranWide:true, anaHorses:[], ...cfg };
+  const T=trials.length;
+  const fr=fukushoRates(trials,horseNums);
+  const topK=[...horseNums].sort((a,b)=>fr[b]-fr[a]).slice(0,c.widePoolTopK);
+  const distinct=legs=>new Set(legs).size===legs.length;          // 馬番重複ガード
+  // 収束ゲートのみ通した「生」候補（+EV判定は後段。見送り時のフォールバックにも使う）
+  const evalRaw=(type,legs)=>{
+    if(!distinct(legs)) return null;
+    const odds=oddsOf(type,legs); if(odds==null) return null;
+    const {p,hits}=lineStats(trials,type,legs);
+    if(hits<c.minHits) return null;
+    const ev=p*odds, edge=ev-1;
+    return {type,legs,p,hits,odds,ev,edge,kellyF:Math.max(0,edge/(odds-1))};
+  };
+  const isEV=r=>r && r.ev>=1+c.tau;
+
+  const secureRaw=[], wideRaw=[];
+  for(const h of topK){ const r=evalRaw('fuku',[h]); if(r) secureRaw.push(r); }
+  for(let i=0;i<topK.length;i++) for(let j=i+1;j<topK.length;j++){ const r=evalRaw('wide',[topK[i],topK[j]]); if(r) secureRaw.push(r); }
+  for(let i=0;i<topK.length;i++) for(let j=i+1;j<topK.length;j++) for(let k=j+1;k<topK.length;k++){ const r=evalRaw('sanrenpuku',[topK[i],topK[j],topK[k]]); if(r) wideRaw.push(r); }
+
+  const secure=secureRaw.filter(isEV);
+  const wide=wideRaw.filter(isEV);
+
+  // 波乱質: すでに+EL採用がある場合のみ、穴が無ければ穴絡みの3連複を1点補強（馬番重複は除外）
+  if((secure.length||wide.length) && c.haranWide && c.anaHorses.length){
+    const hasAna=wide.some(r=>r.legs.some(h=>c.anaHorses.includes(h)));
+    if(!hasAna){
+      let best=null;
+      for(const a of c.anaHorses) for(let i=0;i<topK.length;i++) for(let j=i+1;j<topK.length;j++){
+        const legs=[a,topK[i],topK[j]];
+        if(!distinct(legs)) continue;                              // ← 重複ガード（4-11-4 を防ぐ）
+        const odds=oddsOf('sanrenpuku',legs); if(odds==null) continue;
+        const {p,hits}=lineStats(trials,'sanrenpuku',legs); const ev=p*odds;
+        if(hits>=Math.floor(c.minHits/2) && ev>1 && (!best||ev>best.ev))
+          best={type:'sanrenpuku',legs,p,hits,odds,ev,edge:ev-1,kellyF:Math.max(0,(ev-1)/(odds-1))};
+      }
+      if(best) wide.push(best);
+    }
+  }
+
+  const allocate=(set,pool)=>{
+    let raw=set.map(r=>({...r,stake:c.bankroll*c.kelly*r.kellyF}));
+    const sum=raw.reduce((s,r)=>s+r.stake,0);
+    if(sum>pool && sum>0) raw=raw.map(r=>({...r,stake:r.stake*pool/sum}));
+    return raw.map(r=>({...r,stake:Math.round(Math.min(r.stake,c.bankroll*c.capPerBet)/100)*100})).filter(r=>r.stake>=100);
+  };
+  const mkSummary=(lns)=>{
+    const totalStake=lns.reduce((s,r)=>s+r.stake,0);
+    const expReturn=lns.reduce((s,r)=>s+r.p*r.odds*r.stake,0);
+    let anyHit=0; for(const t of trials) if(lns.length && lns.some(r=>PRED[r.type](t,r.legs))) anyHit++;
+    return { totalStake, expReturn:Math.round(expReturn), roi:totalStake?expReturn/totalStake:0, expProfit:Math.round(expReturn-totalStake), pAtLeastOne:anyHit/T };
+  };
+
+  // 見送り：+EVは無いが、参考として「あえて買うなら」を最善手で提示（最小ベット）
+  if(secure.length===0 && wide.length===0){
+    const unit=100;
+    const bestOf=arr=>arr.length?arr.reduce((b,r)=>r.ev>b.ev?r:b):null;
+    const bestSecure=bestOf(secureRaw), bestWide=bestOf(wideRaw);
+    const fbLines=[bestSecure,bestWide].filter(Boolean).map(r=>({...r,stake:unit}));
+    return {decision:'見送り', reason:'+EV(sim_p×オッズ>1+マージン)を満たす買い目なし',
+      secureLines:[], wideLines:[], lines:[], summary:null,
+      fallback: fbLines.length ? { lines:fbLines, summary:mkSummary(fbLines) } : null };
+  }
+
+  const secureLines=allocate(secure,c.bankroll*c.securePct);
+  const wideLines=allocate(wide,c.bankroll*(1-c.securePct));
+  const lines=[...secureLines,...wideLines];
+  return {decision:'買い', secureLines, wideLines, lines,
+    summarySecure:mkSummary(secureLines), summaryWide:mkSummary(wideLines), summary:mkSummary(lines)};
+}
+
+function fmtLegs(type,legs){ if(type==='tan'||type==='fuku'){ const h=horses.find(x=>x.num===legs[0]); return legs[0]+(h?'. '+escapeHtml(h.name):''); } return legs.join('-'); }
+const betLine=r=>`<div class="betline"><span class="bt">${TYPE_LABEL[r.type]}</span><span class="bl">${fmtLegs(r.type,r.legs)}</span><span class="bp">的中${(r.p*100).toFixed(1)}%・${r.odds.toFixed(1)}倍・EV${r.ev.toFixed(2)}</span><span class="bs">¥${r.stake.toLocaleString()}</span></div>`;
+const betSum=(s)=>`<div class="betsum ${s.roi<1?'warn':''}">投資 ¥${s.totalStake.toLocaleString()}／期待回収 ¥${s.expReturn.toLocaleString()}（ROI ${(s.roi*100).toFixed(0)}%）<br>期待損益 ¥${s.expProfit.toLocaleString()}／的中率(最低1点) ${(s.pAtLeastOne*100).toFixed(1)}%</div>`;
+function renderProposal(p){
+  const el=$('#betOut'); if(!p){ el.innerHTML=''; return; }
+  if(p.decision==='見送り'){
+    let html=`<div class="betverdict miss">見送り</div><p class="hint">${p.reason}（本来は無理に当てにいかない場面）</p>`;
+    if(p.fallback && p.fallback.lines.length){
+      const warn=p.fallback.summary.roi<1;
+      html+=`<div class="betgrp"><h4>⚠️ あえて買うなら（参考・最小ベット）</h4>${p.fallback.lines.map(betLine).join('')}${betSum(p.fallback.summary)}</div>`;
+      html+=`<p class="hint">${warn?'<b style="color:#c0392b">上の赤枠は期待値マイナス＝元本割れの可能性が高いことを示します。</b>':''}+EV基準を満たさない中での最善手です。`
+          +`複勝・連系のオッズは単勝からの推定値。市場と独立した+EVを見たいときはオッズ重みを下げて再シミュ→提案してください。</p>`;
+    }
+    el.innerHTML=html; return;
+  }
+  el.innerHTML=`
+    <div class="betverdict buy">買い</div>
+    <div class="betgrp"><h4>① 堅く取る（複勝・ワイド）</h4>${p.secureLines.length?p.secureLines.map(betLine).join('')+betSum(p.summarySecure):'<p class="hint">該当なし</p>'}</div>
+    <div class="betgrp"><h4>② 広く取る（3連複ほか）</h4>${p.wideLines.length?p.wideLines.map(betLine).join('')+betSum(p.summaryWide):'<p class="hint">該当なし</p>'}</div>
+    <div class="betgrp"><h4>③ サマリ（全体）</h4>${betSum(p.summary)}</div>
+    <p class="hint">複勝・連系のオッズは単勝からの推定値です（実オッズを渡せば精度向上）。sim_pは現在の重み設定に依存するため、市場と独立した+EVを見たいときはオッズ重みを下げてから再シミュ→提案してください。</p>`;
+}
+function runProposal(){
+  if(!lastSim||!lastSim.trials){ return; }
+  const bankroll=+($('#betBank').value||10000);
+  const byOdds=[...horses].sort((a,b)=>a.odds-b.odds);
+  const ana=byOdds.slice(4,Math.min(10,byOdds.length)).map(h=>h.num);   // 5〜10番人気を穴候補に
+  const res=proposeBets(lastSim.trials, horses.map(h=>h.num), (t,l)=>estOdds(t,l), {bankroll, anaHorses:ana});
+  renderProposal(res);
+}
 
 /* ---------- race sim (watch-only) ---------- */
 let raf=null, raceSkip=false;
