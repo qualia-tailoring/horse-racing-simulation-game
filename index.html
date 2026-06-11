@@ -889,10 +889,18 @@ function proposeBets(trials,horseNums,oddsOf,cfg={}){
   }
 
   const allocate=(set,pool)=>{
-    let raw=set.map(r=>({...r,stake:c.bankroll*c.kelly*r.kellyF}));
-    const sum=raw.reduce((s,r)=>s+r.stake,0);
-    if(sum>pool && sum>0) raw=raw.map(r=>({...r,stake:r.stake*pool/sum}));
-    return raw.map(r=>({...r,stake:Math.round(Math.min(r.stake,c.bankroll*c.capPerBet)/100)*100})).filter(r=>r.stake>=100);
+    if(!set.length) return [];
+    // ケリーでサイズ付けしつつ、馬券の最小単位100円を下限に（高オッズでケリー額<100円でも切り捨てない）。
+    // EVの高い順に、枠(pool)を使い切るまで採用。
+    const raw=set.map(r=>({...r, sk:c.bankroll*c.kelly*r.kellyF})).sort((a,b)=>b.ev-a.ev);
+    const out=[]; let used=0;
+    for(const r of raw){
+      let st=Math.round(Math.min(r.sk, c.bankroll*c.capPerBet)/100)*100;
+      if(st<100) st=100;                       // 100円フロア
+      if(used+st>pool){ if(out.length===0 && pool>=100){ out.push({...r,stake:100}); used+=100; } break; }
+      out.push({...r,stake:st}); used+=st;
+    }
+    return out;
   };
   const mkSummary=(lns)=>{
     const totalStake=lns.reduce((s,r)=>s+r.stake,0);
