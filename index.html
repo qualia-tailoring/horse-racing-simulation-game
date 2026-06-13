@@ -411,6 +411,7 @@ select.dd2:focus{border-color:var(--turf);}
                 <option value="value">妙味厚め（軸最小＋波乱厚め）</option>
               </select>
             </label>
+            <label class="sortlab">目標的中%<input id="betTarget" type="number" min="0" max="100" step="5" value="50" style="width:60px"></label>
             <button class="btn btn-ghost btn-sm" id="betBtn">🧮 買い目を再計算</button>
           </div>
           <div id="betOut"></div>
@@ -887,6 +888,7 @@ $('#simN').onchange=runSim;
 $('#simSort').onchange=renderSim;
 $('#betBtn').onclick=runProposal;
 if($('#betMode')) $('#betMode').onchange=runProposal;
+if($('#betTarget')) $('#betTarget').onchange=runProposal;
 $('#simBack').onclick=()=>{ renderAnalyze(); show('analyze'); };
 $('#simToRace').onclick=()=>{ startRace(); };
 function showSimPane(pane){
@@ -936,7 +938,7 @@ function estOdds(type,legs){
 }
 
 function proposeBets(trials,horseNums,oddsOf,cfg={}){
-  const c={ bankroll:10000, mode:'balance', tau:0.10, fukuTau:0.05, haranTau:0.15, secureHitFloor:0.40, anaRankFrom:5, anaEdge:0.20, anaFukuFloor:0.08, minHits:20, kelly:0.25, capPerBet:0.05, securePct:0.6, widePoolTopK:8, haranWide:true, anaHorses:[], ...cfg };
+  const c={ bankroll:10000, mode:'balance', tau:0.10, fukuTau:0.05, haranTau:0.15, secureHitFloor:0.40, targetHitRate:0.50, anaRankFrom:5, anaEdge:0.20, anaFukuFloor:0.08, minHits:20, kelly:0.25, capPerBet:0.05, securePct:0.6, widePoolTopK:8, haranWide:true, anaHorses:[], ...cfg };
   // 配分モード（そのレース予算内で完結）：堅集中=全額堅・波乱なし / バランス=堅Kelly→余剰で波乱 / 妙味厚め=軸最小確保→波乱厚め
   const MODE={ kata:{securePct:1.0,includeWide:false,anchorOnly:false},
                balance:{securePct:0.6,includeWide:true,anchorOnly:false},
@@ -1039,12 +1041,24 @@ function proposeBets(trials,horseNums,oddsOf,cfg={}){
 
   let secureOrdered=[...secure].sort((a,b)=>b.ev-a.ev);
   if(anchor) secureOrdered=[anchor,...secureOrdered.filter(r=>r!==anchor)];   // アンカーを先頭固定＝最優先で資金確保
-  if(mp.anchorOnly) secureOrdered = anchor?[anchor]:[];                        // 妙味厚め＝堅は軸1点のみ確保
+  if(mp.anchorOnly){
+    secureOrdered = anchor?[anchor]:[];                                       // 妙味厚め＝堅は軸1点のみ確保
+  } else {
+    // ソフト目標：+EVライン群を アンカー先頭→EV降順 で採用し、合算的中率(最低1点)が targetHitRate に達したら打ち切り。
+    // +EV上限＝-EVは絶対足さない／届かなければ+EVで届く最大で停止（無理なカバー買いはしない）。
+    const covered=new Array(T).fill(false); let cc=0; const sel=[];
+    for(const r of secureOrdered){
+      sel.push(r);
+      for(let i=0;i<T;i++){ if(!covered[i] && PRED[r.type](trials[i],r.legs)){ covered[i]=true; cc++; } }
+      if(cc/T >= c.targetHitRate) break;
+    }
+    secureOrdered = sel;
+  }
   const secureLines=allocate(secureOrdered, c.bankroll*c.securePct, true);
   const wideLines=allocate(wide,c.bankroll*(1-c.securePct));
   const lines=[...secureLines,...wideLines];
   const anaNames = valueAna.map(h=>{const o=horses.find(x=>x.num===h); return h+(o?'.'+o.name:'');});
-  return {decision:'買い', secureAnchor, valueAna, anaNames, secureLines, wideLines, lines,
+  return {decision:'買い', secureAnchor, valueAna, anaNames, targetHit:c.targetHitRate, secureLines, wideLines, lines,
     summarySecure:mkSummary(secureLines), summaryWide:mkSummary(wideLines), summary:mkSummary(lines)};
 }
 
@@ -1058,6 +1072,12 @@ function anchorBanner(a){
                a.kind==='ワイド退避' ? '人気で複勝-EV→ワイドに退避' :
                a.kind==='複勝軸(中位)' ? '人気馬の複勝は-EV→高複勝率の妙味馬で確保' : '';
   return `<div class="anchor">🛡 軸：${lab}　<span>${a.kind}${note?'／'+note:''}・EV${a.ev.toFixed(2)}・複勝率${(a.p*100).toFixed(0)}%・推定${a.odds.toFixed(1)}倍</span></div>`;
+}
+function secureTargetNote(p){
+  if(!p.secureLines||!p.secureLines.length||!p.summarySecure) return '';
+  const got=p.summarySecure.pAtLeastOne, tgt=p.targetHit||0;
+  const ok=got>=tgt-1e-9;
+  return `<div class="anchor" style="background:${ok?'#eef7ff':'#fff7ea'};border-color:${ok?'#cfe0ff':'#ffe1b0'};color:${ok?'#1c5fb0':'#8a5a00'}">🎯 合算的中率（最低1点）：目標${(tgt*100).toFixed(0)}% → 実績 ${(got*100).toFixed(1)}%${ok?'（達成）':'（+EVで届く上限・無理なカバー買いはしない）'}</div>`;
 }
 function renderProposal(p){
   const el=$('#betOut'); if(!p){ el.innerHTML=''; return; }
@@ -1073,7 +1093,7 @@ function renderProposal(p){
   }
   el.innerHTML=`
     <div class="betverdict buy">買い</div>
-    <div class="betgrp"><h4>① 堅く取る（複勝軸＋ワイド）</h4>${anchorBanner(p.secureAnchor)}${p.secureLines.length?p.secureLines.map(betLine).join('')+betSum(p.summarySecure):'<p class="hint">該当なし</p>'}</div>
+    <div class="betgrp"><h4>① 堅く取る（複勝軸＋ワイド）</h4>${anchorBanner(p.secureAnchor)}${secureTargetNote(p)}${p.secureLines.length?p.secureLines.map(betLine).join('')+betSum(p.summarySecure):'<p class="hint">該当なし</p>'}</div>
     <div class="betgrp"><h4>② 波乱（妙味人気薄絡みの3連複）</h4>${(p.anaNames&&p.anaNames.length)?`<div class="anchor" style="background:#fff7ea;border-color:#ffe1b0;color:#8a5a00">🎯 妙味人気薄（過小評価）：${p.anaNames.join('・')}<span>この馬を必ず1頭絡めた+EVの3連複のみ採用</span></div>`:'<p class="hint">過小評価された人気薄が見当たらず → 波乱は見送り（純変動の一発は追わない）。</p>'}${p.wideLines.length?p.wideLines.map(betLine).join('')+betSum(p.summaryWide):(p.anaNames&&p.anaNames.length?'<p class="hint">妙味人気薄はいるが+EVの3連複が成立せず該当なし。</p>':'')}</div>
     <div class="betgrp"><h4>③ サマリ（全体）</h4>${betSum(p.summary)}</div>
     <p class="hint">複勝・連系のオッズは単勝からの推定値です（実オッズを渡せば精度向上）。sim_pは現在の重み設定に依存するため、市場と独立した+EVを見たいときはオッズ重みを下げてから再シミュ→提案してください。</p>`;
@@ -1082,9 +1102,10 @@ function runProposal(){
   if(!lastSim||!lastSim.trials){ return; }
   const bankroll=+($('#betBank').value||10000);
   const mode=($('#betMode')&&$('#betMode').value)||'balance';
+  const targetHitRate=Math.min(1,Math.max(0,(+($('#betTarget')&&$('#betTarget').value||50))/100));
   const byOdds=[...horses].sort((a,b)=>a.odds-b.odds);
   const ana=byOdds.slice(4,Math.min(10,byOdds.length)).map(h=>h.num);   // 5〜10番人気を穴候補に
-  const res=proposeBets(lastSim.trials, horses.map(h=>h.num), (t,l)=>estOdds(t,l), {bankroll, anaHorses:ana, mode});
+  const res=proposeBets(lastSim.trials, horses.map(h=>h.num), (t,l)=>estOdds(t,l), {bankroll, anaHorses:ana, mode, targetHitRate});
   renderProposal(res);
 }
 
