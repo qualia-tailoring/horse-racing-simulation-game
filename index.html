@@ -403,14 +403,16 @@ select.dd2:focus{border-color:var(--turf);}
           <h3>🧮 買い方の提案（+EVのみ）</h3>
           <p class="hint">この試行結果(sim_p)と市場オッズからEV＝sim_p×オッズを評価し、+EVの買い目だけを提案します。<b>原則：そのレースの予算内で完結（一回の馬券内で当てにいく）</b>。配分モードで「堅集中／バランス（堅＋余剰で波乱）／妙味厚め」を切替。堅は複勝軸（複勝-EVならワイドへ退避）、波乱は余剰で妙味のある人気薄絡みの3連複。+EVが無ければ<b>見送り</b>。複勝・連系のオッズは単勝からの推定値です。</p>
           <div class="toolbar">
-            <label class="sortlab">1レース予算 ¥<input id="betBank" type="number" min="100" step="100" value="10000" style="width:96px"></label>
+            <label class="sortlab">1レース予算 ¥<input id="betBank" type="number" min="100" step="100" value="1000" style="width:96px"></label>
             <label class="sortlab">配分
               <select id="betMode" class="dd2">
                 <option value="kata">堅集中（波乱なし）</option>
                 <option value="balance" selected>バランス（堅＋余剰で波乱）</option>
                 <option value="value">妙味厚め（軸最小＋波乱厚め）</option>
+                <option value="riskaverse">リスク回避（分散・回せるゾーン）</option>
               </select>
             </label>
+            <label class="sortlab">回せる下限倍率<input id="betFloor" type="number" min="1" max="10" step="0.5" value="2.0" style="width:60px"></label>
             <label class="sortlab">目標的中%<input id="betTarget" type="number" min="0" max="100" step="5" value="50" style="width:60px"></label>
             <button class="btn btn-ghost btn-sm" id="betBtn">🧮 買い目を再計算</button>
           </div>
@@ -889,6 +891,7 @@ $('#simSort').onchange=renderSim;
 $('#betBtn').onclick=runProposal;
 if($('#betMode')) $('#betMode').onchange=runProposal;
 if($('#betTarget')) $('#betTarget').onchange=runProposal;
+if($('#betFloor')) $('#betFloor').onchange=runProposal;
 $('#simBack').onclick=()=>{ renderAnalyze(); show('analyze'); };
 $('#simToRace').onclick=()=>{ startRace(); };
 function showSimPane(pane){
@@ -938,11 +941,14 @@ function estOdds(type,legs){
 }
 
 function proposeBets(trials,horseNums,oddsOf,cfg={}){
-  const c={ bankroll:10000, mode:'balance', tau:0.10, fukuTau:0.05, haranTau:0.15, secureHitFloor:0.40, targetHitRate:0.50, anaRankFrom:5, anaEdge:0.20, anaFukuFloor:0.08, minHits:20, kelly:0.25, capPerBet:0.05, securePct:0.6, widePoolTopK:8, haranWide:true, anaHorses:[], ...cfg };
+  const c={ bankroll:1000, mode:'balance', tau:0.10, fukuTau:0.05, haranTau:0.15, secureHitFloor:0.40, targetHitRate:0.50, anaRankFrom:5, anaEdge:0.20, anaFukuFloor:0.08, minHits:20, kelly:0.25, capPerBet:0.05, securePct:0.6, widePoolTopK:8, haranWide:true, anaHorses:[],
+              payoutFloor:2.0, maxPerHorse:0.35, evenTilt:0.5, maxLines:8,   // リスク回避(分散)用：回せる下限倍率／1頭上限／Kelly×均等ブレンド／本数上限
+              ...cfg };
   // 配分モード（そのレース予算内で完結）：堅集中=全額堅・波乱なし / バランス=堅Kelly→余剰で波乱 / 妙味厚め=軸最小確保→波乱厚め
   const MODE={ kata:{securePct:1.0,includeWide:false,anchorOnly:false},
                balance:{securePct:0.6,includeWide:true,anchorOnly:false},
-               value:{securePct:0.30,includeWide:true,anchorOnly:true} };
+               value:{securePct:0.30,includeWide:true,anchorOnly:true},
+               riskaverse:{securePct:1.0,includeWide:false,anchorOnly:false,riskAverse:true} };  // 回せるゾーンを分散・偏り抑制・波乱なし
   const mp = MODE[c.mode]||MODE.balance;
   c.securePct = mp.securePct;
   if(!mp.includeWide) c.haranWide=false;
@@ -1021,6 +1027,29 @@ function proposeBets(trials,horseNums,oddsOf,cfg={}){
     }
     return out;
   };
+  // リスク回避(分散)配分：回せるゾーン(odds≥payoutFloor)の+EVのみを、EV順にmaxLines本まで採用。
+  // サイジングは Kelly×均等のブレンド(evenTilt)＋1頭あたり上限(maxPerHorse)で偏りを抑える。波乱・人気馬アンカーは使わない。
+  const allocateRiskAverse=(cands)=>{
+    // 回せるゾーン(odds≥payoutFloor)の+EVを「的中率の高い順」に maxLines本まで採用＝確実に持っていく。
+    // 配分は Kellyシェア(EV傾斜)×均等のブレンド(evenTilt)。1頭あたり上限(maxPerHorse×予算)で偏りを抑制。
+    const pool=cands.filter(r=>r.odds>=c.payoutFloor).sort((a,b)=>b.p-a.p).slice(0,c.maxLines);
+    if(!pool.length) return [];
+    const budget=c.bankroll*c.securePct;
+    const eq=1/pool.length;
+    const kf=pool.map(r=>Math.max(0,r.kellyF)); const ksum=kf.reduce((a,b)=>a+b,0)||1;
+    let share=pool.map((r,i)=>(1-c.evenTilt)*(kf[i]/ksum) + c.evenTilt*eq);
+    const ssum=share.reduce((a,b)=>a+b,0)||1; share=share.map(x=>x/ssum);
+    const perHorse={}, out=[];
+    for(let i=0;i<pool.length;i++){
+      let cap=Infinity;
+      for(const h of pool[i].legs) cap=Math.min(cap, c.maxPerHorse*budget-(perHorse[h]||0));
+      let st=Math.round(Math.min(budget*share[i], Math.max(0,cap))/100)*100;
+      if(st<100) continue;                              // 100円未満＝回せないので不採用
+      out.push({...pool[i],stake:st});
+      for(const h of pool[i].legs) perHorse[h]=(perHorse[h]||0)+st;
+    }
+    return out;
+  };
   const mkSummary=(lns)=>{
     const totalStake=lns.reduce((s,r)=>s+r.stake,0);
     const expReturn=lns.reduce((s,r)=>s+r.p*r.odds*r.stake,0);
@@ -1039,26 +1068,33 @@ function proposeBets(trials,horseNums,oddsOf,cfg={}){
       fallback: fbLines.length ? { lines:fbLines, summary:mkSummary(fbLines) } : null };
   }
 
-  let secureOrdered=[...secure].sort((a,b)=>b.ev-a.ev);
-  if(anchor) secureOrdered=[anchor,...secureOrdered.filter(r=>r!==anchor)];   // アンカーを先頭固定＝最優先で資金確保
-  if(mp.anchorOnly){
-    secureOrdered = anchor?[anchor]:[];                                       // 妙味厚め＝堅は軸1点のみ確保
+  let secureLines, wideLines;
+  if(mp.riskAverse){
+    secureLines = allocateRiskAverse(secure);   // 回せるゾーンを分散・偏り抑制
+    wideLines = [];                              // 波乱(3連複)は使わない
   } else {
-    // ソフト目標：+EVライン群を アンカー先頭→EV降順 で採用し、合算的中率(最低1点)が targetHitRate に達したら打ち切り。
-    // +EV上限＝-EVは絶対足さない／届かなければ+EVで届く最大で停止（無理なカバー買いはしない）。
-    const covered=new Array(T).fill(false); let cc=0; const sel=[];
-    for(const r of secureOrdered){
-      sel.push(r);
-      for(let i=0;i<T;i++){ if(!covered[i] && PRED[r.type](trials[i],r.legs)){ covered[i]=true; cc++; } }
-      if(cc/T >= c.targetHitRate) break;
+    let secureOrdered=[...secure].sort((a,b)=>b.ev-a.ev);
+    if(anchor) secureOrdered=[anchor,...secureOrdered.filter(r=>r!==anchor)];   // アンカーを先頭固定＝最優先で資金確保
+    if(mp.anchorOnly){
+      secureOrdered = anchor?[anchor]:[];                                       // 妙味厚め＝堅は軸1点のみ確保
+    } else {
+      // ソフト目標：+EVライン群を アンカー先頭→EV降順 で採用し、合算的中率(最低1点)が targetHitRate に達したら打ち切り。
+      // +EV上限＝-EVは絶対足さない／届かなければ+EVで届く最大で停止（無理なカバー買いはしない）。
+      const covered=new Array(T).fill(false); let cc=0; const sel=[];
+      for(const r of secureOrdered){
+        sel.push(r);
+        for(let i=0;i<T;i++){ if(!covered[i] && PRED[r.type](trials[i],r.legs)){ covered[i]=true; cc++; } }
+        if(cc/T >= c.targetHitRate) break;
+      }
+      secureOrdered = sel;
     }
-    secureOrdered = sel;
+    secureLines = allocate(secureOrdered, c.bankroll*c.securePct, true);
+    wideLines = allocate(wide,c.bankroll*(1-c.securePct));
   }
-  const secureLines=allocate(secureOrdered, c.bankroll*c.securePct, true);
-  const wideLines=allocate(wide,c.bankroll*(1-c.securePct));
   const lines=[...secureLines,...wideLines];
   const anaNames = valueAna.map(h=>{const o=horses.find(x=>x.num===h); return h+(o?'.'+o.name:'');});
-  return {decision:'買い', secureAnchor, valueAna, anaNames, targetHit:c.targetHitRate, secureLines, wideLines, lines,
+  const anchorOut = mp.riskAverse ? {kind:'分散', floor:c.payoutFloor} : secureAnchor;
+  return {decision:'買い', secureAnchor:anchorOut, valueAna, anaNames, targetHit:(mp.riskAverse?null:c.targetHitRate), secureLines, wideLines, lines,
     summarySecure:mkSummary(secureLines), summaryWide:mkSummary(wideLines), summary:mkSummary(lines)};
 }
 
@@ -1066,6 +1102,7 @@ function fmtLegs(type,legs){ if(type==='tan'||type==='fuku'){ const h=horses.fin
 const betLine=r=>`<div class="betline"><span class="bt">${TYPE_LABEL[r.type]}</span><span class="bl">${fmtLegs(r.type,r.legs)}</span><span class="bp">的中${(r.p*100).toFixed(1)}%・${r.odds.toFixed(1)}倍・EV${r.ev.toFixed(2)}</span><span class="bs">¥${r.stake.toLocaleString()}</span></div>`;
 const betSum=(s)=>`<div class="betsum ${s.roi<1?'warn':''}">投資 ¥${s.totalStake.toLocaleString()}／期待回収 ¥${s.expReturn.toLocaleString()}（ROI ${(s.roi*100).toFixed(0)}%）<br>期待損益 ¥${s.expProfit.toLocaleString()}／的中率(最低1点) ${(s.pAtLeastOne*100).toFixed(1)}%</div>`;
 function anchorBanner(a){
+  if(a&&a.kind==='分散') return `<div class="anchor" style="background:#eef7ff;border-color:#cfe0ff;color:#1c5fb0">🧩 リスク回避(分散)：複勝・ワイドの<b>回せるゾーン(≥${(a.floor||2).toFixed(1)}倍)</b>の+EVのみを、EV順に分散。人気馬の薄配当複勝は除外・1頭あたり上限で偏り抑制。トリガミ許容で確実に持っていく方針です。</div>`;
   if(!a||a.kind==='なし') return '<div class="anchor warn">⚠ +EVかつ高的中の堅アンカーなし（複勝は-EV／+EVは低的中ワイド寄り）。この堅は妙味薄、無理に取りにいかない場面です。</div>';
   const lab = a.type==='fuku' ? '複勝 '+fmtLegs('fuku',a.legs) : 'ワイド '+a.legs.join('-');
   const note = a.kind==='複勝軸' ? '複勝が+EV' :
@@ -1074,7 +1111,7 @@ function anchorBanner(a){
   return `<div class="anchor">🛡 軸：${lab}　<span>${a.kind}${note?'／'+note:''}・EV${a.ev.toFixed(2)}・複勝率${(a.p*100).toFixed(0)}%・推定${a.odds.toFixed(1)}倍</span></div>`;
 }
 function secureTargetNote(p){
-  if(!p.secureLines||!p.secureLines.length||!p.summarySecure) return '';
+  if(!p.secureLines||!p.secureLines.length||!p.summarySecure||p.targetHit==null) return '';
   const got=p.summarySecure.pAtLeastOne, tgt=p.targetHit||0;
   const ok=got>=tgt-1e-9;
   return `<div class="anchor" style="background:${ok?'#eef7ff':'#fff7ea'};border-color:${ok?'#cfe0ff':'#ffe1b0'};color:${ok?'#1c5fb0':'#8a5a00'}">🎯 合算的中率（最低1点）：目標${(tgt*100).toFixed(0)}% → 実績 ${(got*100).toFixed(1)}%${ok?'（達成）':'（+EVで届く上限・無理なカバー買いはしない）'}</div>`;
@@ -1100,12 +1137,13 @@ function renderProposal(p){
 }
 function runProposal(){
   if(!lastSim||!lastSim.trials){ return; }
-  const bankroll=+($('#betBank').value||10000);
+  const bankroll=+($('#betBank').value||1000);
   const mode=($('#betMode')&&$('#betMode').value)||'balance';
   const targetHitRate=Math.min(1,Math.max(0,(+($('#betTarget')&&$('#betTarget').value||50))/100));
+  const payoutFloor=Math.max(1,(+($('#betFloor')&&$('#betFloor').value||2.0)));
   const byOdds=[...horses].sort((a,b)=>a.odds-b.odds);
   const ana=byOdds.slice(4,Math.min(10,byOdds.length)).map(h=>h.num);   // 5〜10番人気を穴候補に
-  const res=proposeBets(lastSim.trials, horses.map(h=>h.num), (t,l)=>estOdds(t,l), {bankroll, anaHorses:ana, mode, targetHitRate});
+  const res=proposeBets(lastSim.trials, horses.map(h=>h.num), (t,l)=>estOdds(t,l), {bankroll, anaHorses:ana, mode, targetHitRate, payoutFloor});
   renderProposal(res);
 }
 
