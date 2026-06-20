@@ -1294,7 +1294,7 @@ function runProposal(){
   const payoutFloor=Math.max(1,(+($('#betFloor')&&$('#betFloor').value||2.0)));
   const kameFloor=Math.min(0.95,Math.max(0.50,(+($('#betKameFloor')&&$('#betKameFloor').value||50))/100));
   const byOdds=[...horses].sort((a,b)=>a.odds-b.odds);
-  const ana=byOdds.slice(4,Math.min(10,byOdds.length)).map(h=>h.num);   // 5〜10番人気を穴候補に
+  const ana=byOdds.slice(1,Math.min(10,byOdds.length)).map(h=>h.num);   // 1〜10番人気を穴候補に
   const res=proposeBets(lastSim.trials, horses.map(h=>h.num), (t,l)=>estOdds(t,l), {bankroll, anaHorses:ana, mode, targetHitRate, payoutFloor, kameFloor});
   lastProposal={res, mode, bankroll};
   renderProposal(res);
