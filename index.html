@@ -158,6 +158,11 @@ select.dd2:focus{border-color:var(--turf);}
 .betverdict.miss{background:#f4f1f6; color:#8a8298; border:2px solid #d6cfe0;}
 .betgrp{margin:8px 0;}
 .betgrp h4{font-size:12px; font-weight:900; color:var(--ink2); margin:6px 0 4px;}
+.revtbl{width:100%; border-collapse:collapse; font-size:11px;}
+.revtbl th,.revtbl td{border:1px solid #e7ddc8; padding:4px 6px; text-align:left; vertical-align:top;}
+.revtbl th{background:#f3ecda; font-weight:900; color:var(--ink2); white-space:nowrap;}
+.revtbl td{color:var(--ink);}
+.modedesc{font-size:11px; font-weight:800; color:var(--ink2); background:#f3ecda; border:1px solid #e7ddc8; border-radius:8px; padding:6px 9px; margin:4px 0 8px; line-height:1.5;}
 .betline{display:flex; align-items:center; gap:8px; flex-wrap:wrap; background:#fff; border:2px solid #f0e6d2; border-radius:10px; padding:6px 10px; margin-bottom:5px;}
 .betline .bt{font-weight:900; font-size:11px; color:#fff; background:var(--turf); border-radius:6px; padding:2px 8px;}
 .betline .bl{font-family:'Dela Gothic One'; font-size:13px; color:var(--ink);}
@@ -410,13 +415,29 @@ select.dd2:focus{border-color:var(--turf);}
                 <option value="balance" selected>バランス（堅＋余剰で波乱）</option>
                 <option value="value">妙味厚め（軸最小＋波乱厚め）</option>
                 <option value="riskaverse">リスク回避（分散・回せるゾーン）</option>
+                <option value="breakeven">損益分岐（固め＋妙味）</option>
+                <option value="formation">妙味フォーメーション（妙味1＋上位2頭）</option>
+                <option value="bef">固め＋妙味フォーメーション</option>
               </select>
             </label>
             <label class="sortlab">回せる下限倍率<input id="betFloor" type="number" min="1" max="10" step="0.5" value="2.0" style="width:60px"></label>
+            <label class="sortlab">固め的中下限%<input id="betKameFloor" type="number" min="50" max="95" step="5" value="50" style="width:60px"></label>
             <label class="sortlab">目標的中%<input id="betTarget" type="number" min="0" max="100" step="5" value="50" style="width:60px"></label>
             <button class="btn btn-ghost btn-sm" id="betBtn">🧮 買い目を再計算</button>
           </div>
           <div id="betOut"></div>
+          <div class="betgrp" style="margin-top:14px;border-top:2px solid #e7ddc8;padding-top:10px">
+            <h4>📋 妙味レビュー（各レースの妙味馬が来たかを記録・突合）</h4>
+            <div class="toolbar" style="margin-bottom:6px">
+              <button class="btn btn-ghost btn-sm" id="revAdd">＋ この提案を記録</button>
+              <button class="btn btn-ghost btn-sm" id="revCsv">CSV書き出し</button>
+              <button class="btn btn-ghost btn-sm" id="revJson">JSON書き出し</button>
+              <button class="btn btn-ghost btn-sm" id="revImport">JSON読込（マージ）</button>
+              <input type="file" id="revFile" accept=".json,application/json" style="display:none">
+              <button class="btn btn-ghost btn-sm" id="revClear">全消去</button>
+            </div>
+            <div id="reviewOut"><p class="hint">提案を出した状態で「＋ この提案を記録」を押すと、レース・妙味馬・買い目が一覧に貯まります。結果欄に着順や的中を書き込め、CSV/JSONで書き出せます。</p></div>
+          </div>
         </div>
       </div>
     </div>
@@ -728,6 +749,7 @@ function rsRender(){
     b.innerHTML=r+'<span class="sub">'+rc.course+'</span>';
     b.onclick=()=>{
       if(rc.scored) loadPreset(rc.rows); else loadCard(rc.rows);
+      rsState.race=r; rsState.raceName=rc.name;
       rWrap.querySelectorAll('.rs-rbtn').forEach(x=>x.classList.remove('on')); b.classList.add('on');
       $('#rs-current').textContent='▶ '+rsState.date+' '+rsState.track+' '+r+'｜'+rc.name+'（'+rc.course+(rc.going?('・'+rc.going):'')+'）'+(rc.scored?'':' ※脚質・スコア未採点（分析画面で調整）');
     };
@@ -936,6 +958,7 @@ $('#betBtn').onclick=runProposal;
 if($('#betMode')) $('#betMode').onchange=runProposal;
 if($('#betTarget')) $('#betTarget').onchange=runProposal;
 if($('#betFloor')) $('#betFloor').onchange=runProposal;
+if($('#betKameFloor')) $('#betKameFloor').onchange=runProposal;
 $('#simBack').onclick=()=>{ renderAnalyze(); show('analyze'); };
 $('#simToRace').onclick=()=>{ startRace(); };
 function showSimPane(pane){
@@ -985,14 +1008,18 @@ function estOdds(type,legs){
 }
 
 function proposeBets(trials,horseNums,oddsOf,cfg={}){
-  const c={ bankroll:1000, mode:'balance', tau:0.10, fukuTau:0.05, haranTau:0.15, secureHitFloor:0.40, targetHitRate:0.50, anaRankFrom:5, anaEdge:0.20, anaFukuFloor:0.08, minHits:20, kelly:0.25, capPerBet:0.05, securePct:0.6, widePoolTopK:8, haranWide:true, anaHorses:[],
+  const c={ bankroll:10000, mode:'balance', tau:0.10, fukuTau:0.05, haranTau:0.15, secureHitFloor:0.40, targetHitRate:0.50, anaRankFrom:5, anaEdge:0.20, anaFukuFloor:0.08, minHits:20, kelly:0.25, capPerBet:0.05, securePct:0.6, widePoolTopK:8, haranWide:true, anaHorses:[],
               payoutFloor:2.0, maxPerHorse:0.35, evenTilt:0.5, maxLines:8,   // リスク回避(分散)用：回せる下限倍率／1頭上限／Kelly×均等ブレンド／本数上限
+              kameFloor:0.50,   // 損益分岐(固め＋妙味)用：固めの的中率下限
               ...cfg };
   // 配分モード（そのレース予算内で完結）：堅集中=全額堅・波乱なし / バランス=堅Kelly→余剰で波乱 / 妙味厚め=軸最小確保→波乱厚め
   const MODE={ kata:{securePct:1.0,includeWide:false,anchorOnly:false},
                balance:{securePct:0.6,includeWide:true,anchorOnly:false},
                value:{securePct:0.30,includeWide:true,anchorOnly:true},
-               riskaverse:{securePct:1.0,includeWide:false,anchorOnly:false,riskAverse:true} };  // 回せるゾーンを分散・偏り抑制・波乱なし
+               riskaverse:{securePct:1.0,includeWide:false,anchorOnly:false,riskAverse:true},  // 回せるゾーンを分散・偏り抑制・波乱なし
+               breakeven:{securePct:1.0,includeWide:true,anchorOnly:false,breakeven:true},    // 固め＝損益分岐の基盤＋妙味を取り紙以下にならない枠で分散
+               formation:{securePct:1.0,includeWide:false,anchorOnly:false,formation:true}, // 妙味1頭＋複勝率上位2頭の3連複（2軸流し）
+               bef:{securePct:1.0,includeWide:false,anchorOnly:false,bef:true} };            // 固め（損益分岐の基盤）＋妙味フォーメーション
   const mp = MODE[c.mode]||MODE.balance;
   c.securePct = mp.securePct;
   if(!mp.includeWide) c.haranWide=false;
@@ -1112,10 +1139,86 @@ function proposeBets(trials,horseNums,oddsOf,cfg={}){
       fallback: fbLines.length ? { lines:fbLines, summary:mkSummary(fbLines) } : null };
   }
 
-  let secureLines, wideLines;
+  let secureLines, wideLines, breakeven=null, formation=null;
   if(mp.riskAverse){
     secureLines = allocateRiskAverse(secure);   // 回せるゾーンを分散・偏り抑制
     wideLines = [];                              // 波乱(3連複)は使わない
+  } else if(mp.breakeven){
+    const B=c.bankroll;
+    // 固め：複勝/ワイドで的中率≥kameFloor かつ 元返し超。その中で最高オッズ＝妙味枠を最大化。
+    const kameCands=secureRaw.filter(r=>(r.type==='fuku'||r.type==='wide') && r.p>=c.kameFloor && r.odds>1.0).sort((a,b)=>b.odds-a.odds);
+    if(!kameCands.length){
+      return {decision:'見送り', reason:`固め（複勝/ワイドで的中率≥${Math.round(c.kameFloor*100)}%かつ元返し超）が無く、損益分岐方式が成立しません`,
+        secureLines:[], wideLines:[], lines:[], summary:null, fallback:null };
+    }
+    const kame=kameCands[0];
+    let S=Math.round((B/kame.odds)/100)*100; if(S<100) S=100; if(S>Math.floor(B/100)*100) S=Math.floor(B/100)*100;
+    const kameLine={...kame, stake:S, role:'kame'};
+    const secured=Math.round(S*kame.odds);                       // 固め当たり時の戻り
+    const envelope=Math.max(0, Math.min(secured-S, B-S));        // 妙味枠＝取り紙以下にならない上限(固め当たりで投資≤戻りを厳密保証)
+    // 妙味：+EVの高配当(複勝/ワイド/3連複)を固め除外・EV順に、馬が2点以上重複しないよう選ぶ
+    const used=new Set(kame.legs);
+    const pool=[...secure, ...wide].filter(r=>r!==kame && r.ev>=1).sort((a,b)=>b.ev-a.ev);
+    const picked=[];
+    for(const r of pool){
+      if(picked.length>=c.maxLines) break;
+      if(r.legs.some(h=>used.has(h))) continue;                  // 同じ馬が2点以上に出ない
+      picked.push(r); r.legs.forEach(h=>used.add(h));
+    }
+    const desiredCount=picked.length;
+    const per=desiredCount?Math.floor((envelope/desiredCount)/100)*100:0;
+    const mvpLines = per>=100 ? picked.map(r=>({...r, stake:per, role:'mvp'})) : [];
+    // 原資不足：妙味を全点に最低¥100置けない時、必要な最低1レース予算を提示
+    let needFunds=null;
+    if(desiredCount>0 && envelope < desiredCount*100){
+      needFunds=Math.ceil((desiredCount*100*kame.odds/(kame.odds-1))/100)*100;
+    }
+    secureLines=[kameLine]; wideLines=mvpLines;
+    breakeven={ kame:kameLine, secured, envelope, desiredCount, fundedCount:mvpLines.length, needFunds, kameFloor:c.kameFloor };
+  } else if(mp.formation){
+    // 妙味1頭＋複勝率上位2頭の3連複（2軸流し）：2軸は来やすい強馬＝的中の土台、3列目の妙味で配当を取る中間案
+    const a=topK[0], b=topK[1];
+    if(a==null||b==null){
+      return {decision:'見送り', reason:'頭数不足で2軸（複勝率上位2頭）が組めません', secureLines:[],wideLines:[],lines:[],summary:null,fallback:null};
+    }
+    const cand=[];
+    for(const m of horseNums){ if(m===a||m===b) continue; const r=evalRaw('sanrenpuku',[a,b,m]); if(r) cand.push(r); }
+    cand.sort((x,y)=>y.ev-x.ev);
+    let pool=cand.filter(r=>r.ev>=1.0); let ref=false;
+    if(!pool.length && cand.length){ pool=cand.slice(0,Math.min(3,c.maxLines)); ref=true; }   // +EVが無ければ上位を参考（-EV警告）
+    const picked=pool.slice(0,c.maxLines);
+    const per=picked.length?Math.floor((c.bankroll/picked.length)/100)*100:0;
+    const fLines = per>=100 ? picked.map(r=>({...r, stake:per})) : [];
+    secureLines=fLines; wideLines=[];
+    const nm=h=>{const o=horses.find(x=>x.num===h); return h+(o?'.'+o.name:'');};
+    formation={axes:[a,b], axisNames:[nm(a),nm(b)], desiredCount:picked.length, fundedCount:fLines.length, ref};
+  } else if(mp.bef){
+    // 固め（損益分岐の基盤）＋妙味フォーメーション：固めで予算回収しつつ、その枠で2軸流し3連複を買う
+    const B=c.bankroll;
+    const kameCands=secureRaw.filter(r=>(r.type==='fuku'||r.type==='wide') && r.p>=c.kameFloor && r.odds>1.0).sort((a,b)=>b.odds-a.odds);
+    if(!kameCands.length){
+      return {decision:'見送り', reason:`固め（複勝/ワイドで的中率≥${Math.round(c.kameFloor*100)}%かつ元返し超）が無く成立しません`, secureLines:[],wideLines:[],lines:[],summary:null,fallback:null};
+    }
+    const kame=kameCands[0];
+    let S=Math.round((B/kame.odds)/100)*100; if(S<100) S=100; if(S>Math.floor(B/100)*100) S=Math.floor(B/100)*100;
+    const kameLine={...kame, stake:S, role:'kame'};
+    const secured=Math.round(S*kame.odds);
+    const envelope=Math.max(0, Math.min(secured-S, B-S));
+    const a=topK[0], b=topK[1];
+    const cand=[];
+    if(a!=null&&b!=null){ for(const m of horseNums){ if(m===a||m===b) continue; const r=evalRaw('sanrenpuku',[a,b,m]); if(r) cand.push(r); } }
+    cand.sort((x,y)=>y.ev-x.ev);
+    let pool=cand.filter(r=>r.ev>=1.0); let ref=false;
+    if(!pool.length && cand.length){ pool=cand.slice(0,Math.min(3,c.maxLines)); ref=true; }
+    const picked=pool.slice(0,c.maxLines);
+    const per=picked.length?Math.floor((envelope/picked.length)/100)*100:0;
+    const mvpLines = per>=100 ? picked.map(r=>({...r, stake:per, role:'mvp'})) : [];
+    let needFunds=null;
+    if(picked.length>0 && envelope < picked.length*100){ needFunds=Math.ceil((picked.length*100*kame.odds/(kame.odds-1))/100)*100; }
+    const nm=h=>{const o=horses.find(x=>x.num===h); return h+(o?'.'+o.name:'');};
+    secureLines=[kameLine]; wideLines=mvpLines;
+    breakeven={ kame:kameLine, secured, envelope, desiredCount:picked.length, fundedCount:mvpLines.length, needFunds, kameFloor:c.kameFloor };
+    formation={axes:[a,b], axisNames:[a!=null?nm(a):'-', b!=null?nm(b):'-'], ref};
   } else {
     let secureOrdered=[...secure].sort((a,b)=>b.ev-a.ev);
     if(anchor) secureOrdered=[anchor,...secureOrdered.filter(r=>r!==anchor)];   // アンカーを先頭固定＝最優先で資金確保
@@ -1137,8 +1240,8 @@ function proposeBets(trials,horseNums,oddsOf,cfg={}){
   }
   const lines=[...secureLines,...wideLines];
   const anaNames = valueAna.map(h=>{const o=horses.find(x=>x.num===h); return h+(o?'.'+o.name:'');});
-  const anchorOut = mp.riskAverse ? {kind:'分散', floor:c.payoutFloor} : secureAnchor;
-  return {decision:'買い', secureAnchor:anchorOut, valueAna, anaNames, targetHit:(mp.riskAverse?null:c.targetHitRate), secureLines, wideLines, lines,
+  const anchorOut = mp.riskAverse ? {kind:'分散', floor:c.payoutFloor} : (mp.breakeven ? {kind:'損益分岐'} : secureAnchor);
+  return {decision:'買い', mode:c.mode, bef:!!mp.bef, secureAnchor:anchorOut, valueAna, anaNames, breakeven, formation, targetHit:((mp.riskAverse||mp.breakeven||mp.formation||mp.bef)?null:c.targetHitRate), secureLines, wideLines, lines,
     summarySecure:mkSummary(secureLines), summaryWide:mkSummary(wideLines), summary:mkSummary(lines)};
 }
 
@@ -1160,6 +1263,16 @@ function secureTargetNote(p){
   const ok=got>=tgt-1e-9;
   return `<div class="anchor" style="background:${ok?'#eef7ff':'#fff7ea'};border-color:${ok?'#cfe0ff':'#ffe1b0'};color:${ok?'#1c5fb0':'#8a5a00'}">🎯 合算的中率（最低1点）：目標${(tgt*100).toFixed(0)}% → 実績 ${(got*100).toFixed(1)}%${ok?'（達成）':'（+EVで届く上限・無理なカバー買いはしない）'}</div>`;
 }
+const MODE_DESC={
+  kata:'堅集中：全額を堅(複勝/ワイド)に。波乱は買わず的中率重視で確実に取りにいく。配当は小さめ。',
+  balance:'バランス：堅で土台＋余剰で波乱(妙味人気薄絡みの3連複)。的中と配当の折衷。買い目は多め。',
+  value:'妙味厚め：堅は軸最小、資金を波乱(高配当)へ厚く。当たれば大きいが的中は低め・分散大。',
+  riskaverse:'リスク回避(分散)：回せるゾーン(下限倍率以上)の+EVを的中率順に分散。トリガミ許容で確実に持ち帰る。偏り・本数を抑制。',
+  breakeven:'損益分岐(固め＋妙味)：固めで予算回収し、その当たり前提の枠で妙味を分散。固め的中時は取り紙以下にならない。負けは固め外れ時のみ。',
+  formation:'妙味フォーメーション：複勝率上位2頭を2軸に、妙味馬を3列目流しの3連複。2軸が的中の土台、3列目で配当。2軸崩れで全滅。',
+  bef:'固め＋妙味フォーメーション：固めで予算回収しつつ、その枠で2軸流し3連複(妙味)。固め当たりで取り紙以下にならない＋配当の上振れも狙う。'
+};
+function modeDescBanner(mode){ const d=MODE_DESC[mode]; return d?`<div class="modedesc">📌 ${d}</div>`:''; }
 function renderProposal(p){
   const el=$('#betOut'); if(!p){ el.innerHTML=''; return; }
   if(p.decision==='見送り'){
@@ -1172,8 +1285,51 @@ function renderProposal(p){
     }
     el.innerHTML=html; return;
   }
+  if(p.bef){
+    const b=p.breakeven, f=p.formation, k=b.kame;
+    const kameDesc=`${k.type==='fuku'?'複勝':'ワイド'}[${k.legs.join('-')}] ${k.odds.toFixed(1)}倍・的中${(k.p*100).toFixed(0)}%`;
+    const kameBanner=`<div class="anchor" style="background:#eef7ff;border-color:#cfe0ff;color:#1c5fb0">🛡 固め＝<b>${kameDesc}</b> に¥${k.stake.toLocaleString()}。当たれば戻り<b>¥${b.secured.toLocaleString()}</b>＝予算回収。妙味枠＝<b>¥${b.envelope.toLocaleString()}</b>（固め的中時に投資≤戻り＝取り紙以下にならない）。</div>`;
+    const formBanner=`<div class="anchor" style="background:#eef7ff;border-color:#cfe0ff;color:#1c5fb0">🎯 妙味＝複勝率上位2頭【<b>${f.axisNames.join('・')}</b>】を2軸に、妙味馬を3列目流しの3連複。各点の的中率は行に表示。</div>`;
+    const needNote=b.needFunds?`<div class="anchor" style="background:#fff7ea;border-color:#ffe1b0;color:#8a5a00">⚠ 妙味候補${b.desiredCount}点を各¥100で置くには枠不足。全点を賄う最低1レース予算は<b>¥${b.needFunds.toLocaleString()}</b>（現予算では${b.fundedCount}点採用）。</div>`:'';
+    const refNote=f.ref?'<div class="anchor warn">⚠ +EV(EV≥1.0)の3連複が無くEV上位を参考表示（-EV方向）。2軸が強くオッズが付きにくい場面です。</div>':'';
+    el.innerHTML=`
+      <div class="betverdict buy">買い</div>
+      ${modeDescBanner(p.mode)}
+      <div class="betgrp"><h4>① 固め（損益分岐の基盤・必須）</h4>${kameBanner}${p.secureLines.map(betLine).join('')}${betSum(p.summarySecure)}</div>
+      <div class="betgrp"><h4>② 妙味フォーメーション（2軸流し3連複）</h4>${formBanner}${needNote}${refNote}${p.wideLines.length?p.wideLines.map(betLine).join('')+betSum(p.summaryWide):'<p class="hint">枠内に収まる3連複が無く、固めのみ。</p>'}</div>
+      <div class="betgrp"><h4>③ サマリ（全体）</h4>${betSum(p.summary)}</div>
+      <p class="hint">固め当たり時は最低でも投資回収（取り紙以下にならない）。2軸が崩れると妙味は全滅だが固めが下支え。複勝・連系オッズは単勝推定値です。</p>`;
+    return;
+  }
+  if(p.formation){
+    const f=p.formation;
+    const banner=`<div class="anchor" style="background:#eef7ff;border-color:#cfe0ff;color:#1c5fb0">🎯 妙味フォーメーション：複勝率上位2頭【<b>${f.axisNames.join('・')}</b>】を2軸に固定し、妙味馬を3列目に流した3連複。<b>2頭は来やすい強馬＝的中の土台</b>、3列目で配当を取りにいく中間案です。各点の的中率は行に表示。</div>`;
+    const refNote=f.ref?'<div class="anchor warn">⚠ +EV(EV≥1.0)の3連複が無いため、EV上位を参考表示（期待値マイナス＝長期は元本割れ方向）。2軸が強くオッズが付きにくい場面です。</div>':'';
+    el.innerHTML=`
+      <div class="betverdict buy">買い</div>
+      ${modeDescBanner(p.mode)}
+      <div class="betgrp"><h4>妙味フォーメーション（2軸流し3連複）</h4>${banner}${refNote}${p.secureLines.length?p.secureLines.map(betLine).join('')+betSum(p.summarySecure):'<p class="hint">2軸に絡む3連複が成立せず該当なし。</p>'}</div>
+      <p class="hint">2軸が崩れると全滅するタイプです。的中率（各行表示）と合算的中率（サマリ）を見て、妙味馬の枚数を判断してください。複勝・連系オッズは単勝からの推定値です。</p>`;
+    return;
+  }
+  if(p.breakeven){
+    const b=p.breakeven, k=b.kame;
+    const kameDesc=`${k.type==='fuku'?'複勝':'ワイド'}[${k.legs.join('-')}] ${k.odds.toFixed(1)}倍・的中${(k.p*100).toFixed(0)}%`;
+    const banner=`<div class="anchor" style="background:#eef7ff;border-color:#cfe0ff;color:#1c5fb0">🛡 損益分岐（固め＋妙味）：固め＝<b>${kameDesc}</b> に¥${k.stake.toLocaleString()}。当たれば戻り<b>¥${b.secured.toLocaleString()}</b>＝予算回収。`
+      +`妙味枠＝<b>¥${b.envelope.toLocaleString()}</b>（この範囲なら固め的中時に投資≤戻り＝<b>取り紙以下にならない</b>）。固めは的中率≥${Math.round(b.kameFloor*100)}%の中で最高オッズを採用＝妙味枠を最大化。</div>`;
+    const needNote=b.needFunds?`<div class="anchor" style="background:#fff7ea;border-color:#ffe1b0;color:#8a5a00">⚠ 妙味候補${b.desiredCount}点を各¥100で置くには枠が不足。全点を賄う最低1レース予算は<b>¥${b.needFunds.toLocaleString()}</b>です（現予算では${b.fundedCount}点のみ採用）。</div>`:'';
+    el.innerHTML=`
+      <div class="betverdict buy">買い</div>
+      ${modeDescBanner(p.mode)}
+      <div class="betgrp"><h4>① 固め（損益分岐の基盤・必須）</h4>${banner}${p.secureLines.map(betLine).join('')}${betSum(p.summarySecure)}</div>
+      <div class="betgrp"><h4>② 妙味（高配当・馬重複なしで分散）</h4>${needNote}${p.wideLines.length?p.wideLines.map(betLine).join('')+betSum(p.summaryWide):'<p class="hint">妙味枠に収まる+EVの高配当が無く、固めのみ。</p>'}</div>
+      <div class="betgrp"><h4>③ サマリ（全体）</h4>${betSum(p.summary)}</div>
+      <p class="hint">固め当たり時は最低でも投資回収（取り紙以下にならない）、妙味が来れば上乗せ。負けるのは固めが外れた時のみ。複勝・連系オッズは単勝からの推定値です。</p>`;
+    return;
+  }
   el.innerHTML=`
     <div class="betverdict buy">買い</div>
+    ${modeDescBanner(p.mode)}
     <div class="betgrp"><h4>① 堅く取る（複勝軸＋ワイド）</h4>${anchorBanner(p.secureAnchor)}${secureTargetNote(p)}${p.secureLines.length?p.secureLines.map(betLine).join('')+betSum(p.summarySecure):'<p class="hint">該当なし</p>'}</div>
     <div class="betgrp"><h4>② 波乱（妙味人気薄絡みの3連複）</h4>${(p.anaNames&&p.anaNames.length)?`<div class="anchor" style="background:#fff7ea;border-color:#ffe1b0;color:#8a5a00">🎯 妙味人気薄（過小評価）：${p.anaNames.join('・')}<span>この馬を必ず1頭絡めた+EVの3連複のみ採用</span></div>`:'<p class="hint">過小評価された人気薄が見当たらず → 波乱は見送り（純変動の一発は追わない）。</p>'}${p.wideLines.length?p.wideLines.map(betLine).join('')+betSum(p.summaryWide):(p.anaNames&&p.anaNames.length?'<p class="hint">妙味人気薄はいるが+EVの3連複が成立せず該当なし。</p>':'')}</div>
     <div class="betgrp"><h4>③ サマリ（全体）</h4>${betSum(p.summary)}</div>
@@ -1185,11 +1341,83 @@ function runProposal(){
   const mode=($('#betMode')&&$('#betMode').value)||'balance';
   const targetHitRate=Math.min(1,Math.max(0,(+($('#betTarget')&&$('#betTarget').value||50))/100));
   const payoutFloor=Math.max(1,(+($('#betFloor')&&$('#betFloor').value||2.0)));
+  const kameFloor=Math.min(0.95,Math.max(0.50,(+($('#betKameFloor')&&$('#betKameFloor').value||50))/100));
   const byOdds=[...horses].sort((a,b)=>a.odds-b.odds);
   const ana=byOdds.slice(4,Math.min(10,byOdds.length)).map(h=>h.num);   // 5〜10番人気を穴候補に
-  const res=proposeBets(lastSim.trials, horses.map(h=>h.num), (t,l)=>estOdds(t,l), {bankroll, anaHorses:ana, mode, targetHitRate, payoutFloor});
+  const res=proposeBets(lastSim.trials, horses.map(h=>h.num), (t,l)=>estOdds(t,l), {bankroll, anaHorses:ana, mode, targetHitRate, payoutFloor, kameFloor});
+  lastProposal={res, mode, bankroll};
   renderProposal(res);
 }
+
+/* ---------- 妙味レビュー（記録・突合・書き出し） ---------- */
+let reviewLog=[]; let lastProposal=null;
+function mvpHorsesOf(res){
+  // 妙味馬：損益分岐=妙味ラインの馬／その他=妙味人気薄(valueAna)。無ければ買い目から人気薄寄りを拾う。
+  if(res.breakeven){ const s=new Set(); res.wideLines.forEach(l=>l.legs.forEach(h=>s.add(h))); return [...s]; }
+  if(res.valueAna&&res.valueAna.length) return [...res.valueAna];
+  return [];
+}
+function recordReview(){
+  if(!lastProposal||!lastProposal.res||lastProposal.res.decision!=='買い'){ alert('記録できる「買い」の提案がありません。先に買い目を出してください。'); return; }
+  const res=lastProposal.res;
+  const horsesName=h=>{const o=horses.find(x=>x.num===h); return h+(o?'.'+o.name:'');};
+  const mvp=mvpHorsesOf(res);
+  reviewLog.push({
+    ts:new Date().toISOString().slice(0,16).replace('T',' '),
+    date:rsState.date||'', track:rsState.track||'', race:rsState.race||'', raceName:rsState.raceName||'',
+    mode:lastProposal.mode, bankroll:lastProposal.bankroll,
+    kame: res.breakeven ? `${res.breakeven.kame.type==='fuku'?'複勝':'ワイド'}[${res.breakeven.kame.legs.join('-')}]` : '',
+    mvp: mvp.map(horsesName),
+    lines: res.lines.map(l=>({type:l.type,legs:l.legs,odds:+l.odds.toFixed(1),stake:l.stake})),
+    result:''
+  });
+  saveReview();
+  renderReview();
+}
+function renderReview(){
+  const el=$('#reviewOut'); if(!reviewLog.length){ el.innerHTML='<p class="hint">まだ記録がありません。</p>'; return; }
+  let h='<table class="revtbl"><thead><tr><th>日付/場/R</th><th>レース</th><th>モード</th><th>固め</th><th>妙味馬</th><th>買い目</th><th>結果（着順・的中メモ）</th><th></th></tr></thead><tbody>';
+  reviewLog.forEach((r,i)=>{
+    h+=`<tr>
+      <td>${r.date} ${r.track} ${r.race}</td>
+      <td>${r.raceName||''}</td>
+      <td>${r.mode}</td>
+      <td>${r.kame||'-'}</td>
+      <td>${r.mvp.length?r.mvp.join('<br>'):'-'}</td>
+      <td>${r.lines.length}点</td>
+      <td><input class="dw" style="width:160px" value="${(r.result||'').replace(/"/g,'&quot;')}" onchange="reviewLog[${i}].result=this.value;saveReview()"></td>
+      <td><button class="btn btn-ghost btn-sm" onclick="delReview(${i})">×</button></td>
+    </tr>`;
+  });
+  h+='</tbody></table>';
+  el.innerHTML=h;
+}
+function delReview(i){ reviewLog.splice(i,1); saveReview(); renderReview(); }
+const REV_KEY='umaoji_review_v1';
+function saveReview(){ try{ localStorage.setItem(REV_KEY, JSON.stringify(reviewLog)); }catch(e){} }   // 端末ごとに保持（リロードで消えない）。未対応環境ではセッションのみ。
+function loadReview(){ try{ const s=localStorage.getItem(REV_KEY); if(s){ const a=JSON.parse(s); if(Array.isArray(a)) reviewLog=a; } }catch(e){} }
+function mergeReview(arr){ const key=r=>`${r.ts}|${r.date}|${r.track}|${r.race}|${r.mode}`; const seen=new Set(reviewLog.map(key)); let added=0; arr.forEach(r=>{ if(r&&!seen.has(key(r))){ reviewLog.push(r); seen.add(key(r)); added++; } }); return added; }
+function importReviewJSON(file){ const fr=new FileReader(); fr.onload=()=>{ try{ const a=JSON.parse(fr.result); if(!Array.isArray(a)) return alert('JSON形式が不正です（配列が必要）'); const n=mergeReview(a); saveReview(); renderReview(); alert(`マージ完了：${n}件追加、計${reviewLog.length}件`); }catch(e){ alert('読み込み失敗: '+e.message); } }; fr.readAsText(file); }
+function dlFile(name,content,type){ const b=new Blob([content],{type}); const u=URL.createObjectURL(b); const a=document.createElement('a'); a.href=u; a.download=name; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(u); }
+function exportReviewCSV(){
+  if(!reviewLog.length){ alert('記録がありません。'); return; }
+  const esc=s=>'"'+String(s).replace(/"/g,'""')+'"';
+  const head=['記録時刻','日付','場','R','レース名','モード','予算','固め','妙味馬','買い目','結果'];
+  const rows=reviewLog.map(r=>[r.ts,r.date,r.track,r.race,r.raceName,r.mode,r.bankroll,r.kame,
+    r.mvp.join(' '), r.lines.map(l=>`${l.type}[${l.legs.join('-')}]${l.odds}x¥${l.stake}`).join(' / '), r.result].map(esc).join(','));
+  dlFile(`妙味レビュー_${new Date().toISOString().slice(0,10)}.csv`, '\uFEFF'+[head.map(esc).join(','),...rows].join('\r\n'), 'text/csv');
+}
+function exportReviewJSON(){
+  if(!reviewLog.length){ alert('記録がありません。'); return; }
+  dlFile(`妙味レビュー_${new Date().toISOString().slice(0,10)}.json`, JSON.stringify(reviewLog,null,2), 'application/json');
+}
+if($('#revAdd'))   $('#revAdd').onclick=recordReview;
+if($('#revCsv'))   $('#revCsv').onclick=exportReviewCSV;
+if($('#revJson'))  $('#revJson').onclick=exportReviewJSON;
+if($('#revImport'))$('#revImport').onclick=()=>$('#revFile')&&$('#revFile').click();
+if($('#revFile'))  $('#revFile').onchange=function(){ if(this.files&&this.files[0]){ importReviewJSON(this.files[0]); this.value=''; } };
+if($('#revClear')) $('#revClear').onclick=()=>{ if(confirm('記録を全消去しますか？')){ reviewLog=[]; saveReview(); renderReview(); } };
+loadReview(); renderReview();   // 端末の保存ログを復元
 
 /* ---------- race sim (watch-only) ---------- */
 let raf=null, raceSkip=false;
