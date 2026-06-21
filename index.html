@@ -727,7 +727,7 @@ const RACES = {
 };
 
 /* ---- セレクタ描画（日付→競馬場→レース） ---- */
-let rsState={date:'6/21(日)',track:'東京'};
+let rsState={date:null,track:null};
 function rsRender(){
   const dWrap=$('#rs-dates'), tWrap=$('#rs-tracks'), rWrap=$('#rs-races');
   dWrap.innerHTML=''; tWrap.innerHTML=''; rWrap.innerHTML='';
@@ -757,7 +757,8 @@ function rsRender(){
     rWrap.appendChild(b);
   });
 }
-rsState.date=Object.keys(RACES)[0];
+/* 日付のデフォルト選択変えたい場合は↓を修正する */
+rsState.date=Object.keys(RACES)[1];
 rsState.track=Object.keys(RACES[rsState.date])[0];
 rsRender();
 
@@ -1624,7 +1625,6 @@ $('#styleToggle').onclick=()=>{
   refreshAvatars();
 };
 renderHorses();
-document.addEventListener('DOMContentLoaded', rsRender);
 </script>
 </body>
 </html>
